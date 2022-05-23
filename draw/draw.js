@@ -355,7 +355,7 @@ Game.SETUP = () => {
     const camera = new Camera(canvas, new Cartesian(0, 0), 500);
     camera.height = 200;
     Game.GAME = new Game(camera);
-    Game.GAME.userInterface = new UserInterface(document.getElementById("modelJSON"), document.getElementById("parentShape"), document.getElementById("description"));
+    Game.GAME.userInterface = new UserInterface(document.getElementById("modelJSON"), document.getElementById("parentShape"), document.getElementById("selection"));
 };
 Game.TIME = 0;
 class Camera {
@@ -449,10 +449,10 @@ var Tool;
     Tool[Tool["move"] = 0] = "move";
 })(Tool || (Tool = {}));
 class UserInterface {
-    constructor(textArea, parentShapeDiv, descriptionDiv) {
+    constructor(textArea, parentShapeDiv, selectionDiv) {
         this.textArea = textArea;
         this.parentShapeDiv = parentShapeDiv;
-        this.descriptionDiv = descriptionDiv;
+        this.selectionDiv = selectionDiv;
         this.gridSize = 5;
         this.selectedObject = 0;
         this.mouseSnap = true;
@@ -519,10 +519,10 @@ class UserInterface {
     }
     selectObject(idx) {
         const me = this;
-        Array.from(this.descriptionDiv.children).forEach(element => {
+        Array.from(this.selectionDiv.children).forEach(element => {
             element.remove();
         });
-        this.descriptionDiv.appendChild(createTextSpan("(" + this.selectedObjects.length + " option" + (this.selectedObjects.length === 1 ? "" : "s") + ")"));
+        this.selectionDiv.appendChild(createTextSpan("(" + this.selectedObjects.length + " option" + (this.selectedObjects.length === 1 ? "" : "s") + ")"));
         const input = document.createElement("input");
         input.id = "selectedObject";
         input.type = "number";
@@ -533,19 +533,19 @@ class UserInterface {
         input.onchange = () => {
             me.selectObject(parseInt(input.value) - 1);
         };
-        this.descriptionDiv.appendChild(input);
+        this.selectionDiv.appendChild(input);
         this.selectedObject = idx;
         const selectedObject = this.selectedObjects[this.selectedObject];
         this.showSelectBox();
         switch (selectedObject.identify()) {
             case "Shape":
-                this.descriptionDiv.appendChild(createTextSpan("Shape"));
+                this.selectionDiv.appendChild(createTextSpan("Shape"));
                 break;
             case "Polygon":
-                this.descriptionDiv.appendChild(createTextSpan("Polygon"));
+                this.selectionDiv.appendChild(createTextSpan("Polygon"));
                 break;
             case "Cartesian":
-                this.descriptionDiv.appendChild(createTextSpan("Polygon Point"));
+                this.selectionDiv.appendChild(createTextSpan("Polygon Point"));
                 break;
         }
     }
