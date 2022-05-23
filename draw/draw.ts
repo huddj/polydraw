@@ -91,10 +91,19 @@ function borderCanvas(canvas: HTMLCanvasElement): void {
     drawLine(canvas, [canvas.width, 0], [canvas.width, canvas.height], "black", lineWidth);
     drawLine(canvas, [0, ctx.canvas.height], [canvas.width, canvas.height], "black", lineWidth);
 }
-class Cartesian {
+function createTextSpan(text: string): HTMLSpanElement {
+    const span = document.createElement("span");
+    span.appendChild(document.createTextNode(text));
+    return span;
+}
+interface Identified {
+    identify(): string;
+}
+class Cartesian implements Identified {
     x: number;
     y: number;
     static TOPOLAR = (point: Cartesian): Polar => new Polar(Math.atan2(point.y, point.x), pythag(point.x, point.y));
+    identify(): string {return "Cartesian";}
     constructor(coords: [number, number] | { x: number, y: number } | Cartesian | number, y: number = 0) {
         if (typeof coords === "number") {
             this.x = coords;
@@ -117,8 +126,14 @@ class Cartesian {
     toString(): string {
         return "[x: " + this.x + ", y: " + this.y + "]";
     }
+    get arr(): [number, number] {
+        return [this.x, this.y];
+    }
+    eq(other: Cartesian): boolean {
+        return (this.x === other.x && this.y === other.y);
+    }
 }
-class Polar {
+class Polar implements Identified {
     angle: number;
     radius: number;
     static TOCARTESIAN = (point: Polar): Cartesian => new Cartesian(point.radius * Math.cos(point.angle), point.radius * Math.sin(point.angle));
@@ -137,6 +152,7 @@ class Polar {
             this.radius = (coords as { angle: number, radius: number }).radius;
         }
     }
+    identify(): string {return "Polar";}
     transform(angle: [number, number] | { angle: number, radius: number } | Polar | number, radius: number = 0): Polar {
         const transform = Polar.TOCARTESIAN(new Polar(angle, radius));
         return Cartesian.TOPOLAR(Polar.TOCARTESIAN(this).transform(transform));
@@ -152,7 +168,7 @@ class Polar {
     }
 }
 type EvaluatedShape = { name: string, root: boolean, origin: Cartesian, rotation: number, shapes: EvaluatedShape[], polygons: EvaluatedPolygon[] };
-class Shape {
+class Shape implements Identified {
     rotation: number = 0;
     origin: Cartesian;
     root: boolean = true;
@@ -160,6 +176,7 @@ class Shape {
         this.origin = new Cartesian(origin);
         this.shapes.forEach(s => { s.root = false; });
     }
+    identify(): string {return "Shape";}
     evaluate(state: { position: Cartesian, rotation: number } = null): EvaluatedShape {
         const adjustedState = state === null ?
             { position: this.origin, rotation: this.rotation } :
@@ -193,11 +210,12 @@ class Shape {
     }
 }
 type EvaluatedPolygon = { points: Cartesian[], color: string, layer: number, lineOnly: boolean };
-class Polygon {
+class Polygon implements Identified {
     points: Cartesian[]
     constructor(points: Cartesian[] | [number, number][] | { x: number, y: number }[], public color: string = "", public layer: number = 0, public lineOnly: boolean = false) {
         this.points = points.map(p => new Cartesian(p));
     }
+    identify(): string {return "Polygon";}
     evaluate(state: { position: Cartesian, rotation: number }): EvaluatedPolygon {
         const adjustedPoints = this.points.map(p => {
             return state.position.transform(Polar.TOCARTESIAN(Cartesian.TOPOLAR(p).rotate(state.rotation)));
@@ -253,13 +271,33 @@ class Input { //singleton
     static INPUT: Input;
     static SETUP = () => {
         Input.INPUT = new Input();
-        document.addEventListener("keydown", (event: KeyboardEvent) => { Input.KEYCHANGE(event.key.toLowerCase(), true); event.preventDefault(); });
-        document.addEventListener("keyup", (event: KeyboardEvent) => { Input.KEYCHANGE(event.key.toLowerCase(), false); event.preventDefault(); });
+        document.addEventListener("keydown", (event: KeyboardEvent) => {
+            if (Game.GAME.camera.canvas === document.activeElement) {
+                Input.KEYCHANGE(event.key.toLowerCase(), true);
+                event.preventDefault();
+            }
+        });
+        document.addEventListener("keyup", (event: KeyboardEvent) => {
+            if (Game.GAME.camera.canvas === document.activeElement) {
+                Input.KEYCHANGE(event.key.toLowerCase(), false);
+                event.preventDefault();
+            }
+        });
         document.addEventListener("mousemove", (event: MouseEvent) => {
             Input.INPUT.canvasMouseCoords = [
                 event.clientX - Game.GAME.camera.canvas.getBoundingClientRect().left,
                 event.clientY - Game.GAME.camera.canvas.getBoundingClientRect().top
             ];
+        });
+        document.addEventListener("mousedown", (event: MouseEvent) => {
+            if (Game.GAME.camera.canvas === document.activeElement) {
+                Input.KEYCHANGE("mouse", true);
+            }
+        });
+        document.addEventListener("mouseup", (event: MouseEvent) => {
+            if (Game.GAME.camera.canvas === document.activeElement) {
+                Input.KEYCHANGE("mouse", false);
+            }
         });
     }
     static KEYCHANGE = (key: string, down: boolean) => {
@@ -282,6 +320,8 @@ class Input { //singleton
         this.keyHandlers.set("lrAX", new QAxis(["arrowleft", "arrowright"], () => {}));
         this.keyHandlers.set("minB", new Button(["-"], (down: boolean) => {if (down) {Game.GAME.camera.height *= 1.25;}}));
         this.keyHandlers.set("eqB", new Button(["="], (down: boolean) => {if (down) {Game.GAME.camera.height *= 0.8;}}));
+        this.keyHandlers.set("aB", new Button(["a"], (down: boolean) => {Game.GAME.userInterface.selectParentShape();}));
+        this.keyHandlers.set("mouseB", new Button(["mouse"], (down: boolean) => {Game.GAME.userInterface.selectObjects();}));
     }
 }
 class Game { //singleton
@@ -290,13 +330,20 @@ class Game { //singleton
         const canvas = document.getElementById("canvas") as HTMLCanvasElement;
         console.log("cavnas registered", "width", canvas.width, "height", canvas.height);
         const camera = new Camera(canvas, new Cartesian(0, 0), 500);
+        camera.height = 200;
         Game.GAME = new Game(camera);
+        Game.GAME.userInterface = new UserInterface(
+            document.getElementById("modelJSON") as HTMLTextAreaElement,
+            document.getElementById("parentShape") as HTMLDivElement,
+            document.getElementById("description") as HTMLDivElement
+        );
     }
     static TIME = 0;
     model: Shape;
     intervalId: number;
     playingInterval: boolean = false;
     time: DOMHighResTimeStamp = performance.now();
+    userInterface: UserInterface;
     constructor(public camera: Camera) {
         this.model = new Shape(
             "hull", [0, 0],
@@ -316,8 +363,7 @@ class Game { //singleton
                 new Shape("right wing", [-5, 15], [new Polygon([[5, 0], [5, 40], [-5, 35], [-5, 20], [-10, 0], [0, -5]], "DarkGrey", 0)], []),
                 new Shape("left wing", [-5, -15], [new Polygon([[5, 0], [5, -40], [-5, -35], [-5, -20], [-10, 0], [0, 5]], "DarkGrey", 0)], [])
             ]
-        ),
-        100
+        );
     }
 }
 class Camera {
@@ -366,10 +412,26 @@ class Camera {
             camera.position.y = camera.positionOffset.y;
             cleanCanvas(camera.canvas);
             borderCanvas(camera.canvas);
+            camera.renderBackground(camera);
             camera.renderShapes(camera);
             camera.renderGUI(camera);
             camera.animationFrameId = window.requestAnimationFrame(camera.render(camera));
         };
+    }
+    renderBackground(camera: Camera): void {
+        const graphSize = Game.GAME.userInterface.gridSize;
+        // const model = Game.GAME.userInterface.selectedParentShape;
+        // const rotation = model.rotation;
+        const xMin = camera.position.x - (2 * camera.radius[0]), xMax = camera.position.x + (2 * camera.radius[0]);
+        const yMin = camera.position.y - (2 * camera.radius[1]), yMax = camera.position.y + (2 * camera.radius[1]);
+        for (let x = xMin - (xMin % graphSize); x < xMax; x += 5) {
+            const color = x % (graphSize * 10) === 0 ? "DimGrey" : "DarkGrey";
+            drawLine(camera.canvas, camera.realToCanvas([x, yMin]).arr, camera.realToCanvas([x, yMax]).arr, color);
+        }
+        for (let y = yMin - (yMin % graphSize); y < yMax; y += 5) {
+            const color = y % (graphSize * 10) === 0 ? "DimGrey" : "DarkGrey";
+            drawLine(camera.canvas, camera.realToCanvas([xMin, y]).arr, camera.realToCanvas([xMax, y]).arr, color);
+        }
     }
     renderShapes(camera: Camera): void {
         const s = Game.GAME.model;
@@ -382,6 +444,123 @@ class Camera {
     renderGUI(camera: Camera): void {
         //mouse pointer
         drawArc(camera.canvas, Input.INPUT.canvasMouseCoords, 4, 0, 2 * Math.PI, "black", 2);
+        if (Game.GAME.userInterface.mouseSnap) {
+            drawArc(camera.canvas, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, 4, 0, 2 * Math.PI, "DimGrey", 2);
+        }
+        Game.GAME.userInterface.renderGUI(camera);
+    }
+}
+enum Tool {
+    move
+}
+class UserInterface {
+    gridSize: number = 5;
+    selectedParentShape: Shape;
+    selectedObjects: (Shape | Polygon | Cartesian)[];
+    selectedObject: number = 0;
+    selectedTool: Tool;
+    mouseSnap: boolean = true;
+    constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public descriptionDiv: HTMLDivElement) {
+        this.selectedParentShape = Game.GAME.model;
+        this.selectedObjects = [Game.GAME.model];
+        this.selectParentShape();
+    }
+    toJSON() {
+        this.textArea.value = JSON.stringify(Game.GAME.model);
+    }
+    fromJSON() {
+        let convertObjToShape: (obj: Object) => Shape;
+        convertObjToShape = (obj: Object): Shape => {
+            const basic = obj as Shape;
+            const polygons = basic.polygons.map(p => {
+                const poly = p as Polygon;
+                return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
+            });
+            return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
+        }
+        Game.GAME.model = convertObjToShape(JSON.parse(this.textArea.value));
+    }
+    get snappedMouseCoords(): Cartesian {
+        const gridSize = this.gridSize;
+        const rMC = Input.INPUT.realMouseCoords;
+        const negativeCorrectedModulo = (val: number, mod: number): number => ((val % mod) + mod) % mod;
+        const nCMX = negativeCorrectedModulo(rMC[0], gridSize), nCMY = negativeCorrectedModulo(rMC[1], gridSize)
+        const x = nCMX < (gridSize / 2) ? rMC[0] - nCMX : rMC[0] - nCMX + gridSize;
+        const y = nCMY < (gridSize / 2) ? rMC[1] - nCMY : rMC[1] - nCMY + gridSize;
+        return new Cartesian(x, y);
+    }
+    renderGUI(camera: Camera): void {
+        drawArc(camera.canvas, camera.realToCanvas(this.selectedParentShape.origin).arr, 10, 0, 2 * Math.PI, "blue", 2);
+    }
+    checkMouse(shape: Shape = Game.GAME.model): (Shape | Polygon | Cartesian)[] {
+        const realMouseCoords = this.snappedMouseCoords;
+        let result: (Shape | Polygon | Cartesian)[] = []
+        if (shape.origin.eq(realMouseCoords)) {
+            result.push(shape);
+        }
+        shape.shapes.forEach(s => {
+            result = result.concat(this.checkMouse(s));
+        });
+        shape.polygons.forEach(poly => {
+            poly.points.forEach(point => {
+                if (point.eq(realMouseCoords)) {
+                    if (!result.includes(poly)) {
+                        result.push(poly);
+                    }
+                    result.push(point);
+                }
+            });
+        });
+        return result;
+    }
+    showSelectBox(): void {
+
+    }
+    selectObjects(): void {
+        const mouseCheck = this.checkMouse();
+        if (0 < mouseCheck.length) {
+            this.selectedObjects = mouseCheck;
+            this.selectObject(0);
+        }
+    }
+    selectObject(idx: number): void {
+        const me = this;
+        Array.from(this.descriptionDiv.children).forEach(element => {
+            element.remove();
+        });
+        this.descriptionDiv.appendChild(createTextSpan("(" + this.selectedObjects.length + " option" + (this.selectedObjects.length === 1 ? "" : "s")  + ")"));
+        const input = document.createElement("input") as HTMLInputElement;
+        input.id = "selectedObject";
+        input.type = "number";
+        input.min = "0";
+        input.max = "" + this.selectedObjects.length;
+        input.style.width = "4ch";
+        input.value = (idx + 1) + "";
+        input.onchange = () => {
+            me.selectObject(parseInt(input.value) - 1);
+        };
+        this.descriptionDiv.appendChild(input);
+        this.selectedObject = idx;
+        const selectedObject = this.selectedObjects[this.selectedObject];
+        this.showSelectBox();
+        switch ((selectedObject as Identified).identify()) {
+            case "Shape":
+                this.descriptionDiv.appendChild(createTextSpan("Shape"));
+                break;
+            case "Polygon":
+                this.descriptionDiv.appendChild(createTextSpan("Polygon"));
+                break;
+            case "Cartesian":
+                this.descriptionDiv.appendChild(createTextSpan("Polygon Point"));
+                break;
+        }
+
+    }
+    selectParentShape(): void {
+        if ((this.selectedObjects[this.selectedObject] as Identified).identify() === "Shape") {
+            this.selectedParentShape = this.selectedObjects[this.selectedObject] as Shape;
+            this.parentShapeDiv.innerHTML = this.selectedParentShape.name + " at: " + this.selectedParentShape.origin.toString();
+        }
     }
 }
 
