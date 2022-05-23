@@ -91,8 +91,11 @@ function borderCanvas(canvas: HTMLCanvasElement): void {
     drawLine(canvas, [canvas.width, 0], [canvas.width, canvas.height], "black", lineWidth);
     drawLine(canvas, [0, ctx.canvas.height], [canvas.width, canvas.height], "black", lineWidth);
 }
-function createTextSpan(text: string): HTMLSpanElement {
+function createTextSpan(text: string, color: string = null): HTMLSpanElement {
     const span = document.createElement("span");
+    if (color) {
+        span.style.color = color;
+    }
     span.appendChild(document.createTextNode(text));
     return span;
 }
@@ -167,21 +170,25 @@ class Polar implements Identified {
         return new Polar(this.angle, this.radius * scalar);
     }
 }
-type EvaluatedShape = { name: string, root: boolean, origin: Cartesian, rotation: number, shapes: EvaluatedShape[], polygons: EvaluatedPolygon[] };
 class Shape implements Identified {
     rotation: number = 0;
     origin: Cartesian;
     root: boolean = true;
+    original: Shape = null;
+    get evaluated(): boolean {return this.original !== null;}
+    identify(): string {return "Shape";}
     constructor(public name: string, origin: Cartesian | [number, number] | { x: number, y: number }, public polygons: Polygon[], public shapes: Shape[]) {
         this.origin = new Cartesian(origin);
         this.shapes.forEach(s => { s.root = false; });
     }
-    identify(): string {return "Shape";}
-    evaluate(state: { position: Cartesian, rotation: number } = null): EvaluatedShape {
+    evaluate(state: { position: Cartesian, rotation: number } = null): Shape {
         const adjustedState = state === null ?
             { position: this.origin, rotation: this.rotation } :
             { position: state.position.transform(Polar.TOCARTESIAN(Cartesian.TOPOLAR(this.origin).rotate(state.rotation))), rotation: state.rotation + this.rotation };
-        const result: EvaluatedShape = { name: this.name, root: this.root, origin: adjustedState.position, rotation: adjustedState.rotation, shapes: [], polygons: [] };
+        const result = new Shape(this.name, adjustedState.position, [], []);
+        result.original = this;
+        result.rotation = adjustedState.rotation;
+        result.root = this.root;
         this.polygons.forEach(p => {
             result.polygons.push(p.evaluate(adjustedState));
         });
@@ -190,15 +197,15 @@ class Shape implements Identified {
         });
         return result;
     }
-    static GETEVALUATEDPOLYGONS = (shape: EvaluatedShape): EvaluatedPolygon[] => {
+    static ALLPOLYGONS = (shape: Shape): Polygon[] => {
         let result = shape.polygons;
         shape.shapes.forEach(s => {
-            result = result.concat(Shape.GETEVALUATEDPOLYGONS(s));
+            result = result.concat(Shape.ALLPOLYGONS(s));
         });
         return result;
     };
     renderAll(canvas: HTMLCanvasElement): void {
-        const polygons = Shape.GETEVALUATEDPOLYGONS(this.evaluate()).sort((a, b) => a.layer - b.layer);
+        const polygons = Shape.ALLPOLYGONS(this.evaluate()).sort((a, b) => a.layer - b.layer);
         polygons.forEach(poly => {
             const points: [number, number][] = poly.points.map(p => [p.x, p.y]);
             if (poly.lineOnly) {
@@ -209,18 +216,21 @@ class Shape implements Identified {
         });
     }
 }
-type EvaluatedPolygon = { points: Cartesian[], color: string, layer: number, lineOnly: boolean };
 class Polygon implements Identified {
     points: Cartesian[]
+    original: Polygon = null;
+    get evaluated(): boolean {return this.original !== null;}
+    identify(): string {return "Polygon";}
     constructor(points: Cartesian[] | [number, number][] | { x: number, y: number }[], public color: string = "", public layer: number = 0, public lineOnly: boolean = false) {
         this.points = points.map(p => new Cartesian(p));
     }
-    identify(): string {return "Polygon";}
-    evaluate(state: { position: Cartesian, rotation: number }): EvaluatedPolygon {
+    evaluate(state: { position: Cartesian, rotation: number }): Polygon {
         const adjustedPoints = this.points.map(p => {
             return state.position.transform(Polar.TOCARTESIAN(Cartesian.TOPOLAR(p).rotate(state.rotation)));
         });
-        return { points: adjustedPoints, layer: this.layer, color: this.color, lineOnly: this.lineOnly };
+        const result = new Polygon(adjustedPoints, this.color, this.layer, this.lineOnly);
+        result.original = this;
+        return result;
     }
 }
 class Force {
@@ -435,7 +445,7 @@ class Camera {
     }
     renderShapes(camera: Camera): void {
         const s = Game.GAME.model;
-        const polygons = Shape.GETEVALUATEDPOLYGONS(s.evaluate()).sort((a, b) => a.layer - b.layer);
+        const polygons = Shape.ALLPOLYGONS(s.evaluate()).sort((a, b) => a.layer - b.layer);
         polygons.forEach(poly => {
             const points = poly.points.map((p): [number,number] => {const cP = camera.realToCanvas(p); return [cP.x, cP.y]});
             drawPolygon(this.canvas, points, poly.color);
@@ -456,13 +466,14 @@ enum Tool {
 class UserInterface {
     gridSize: number = 5;
     selectedParentShape: Shape;
-    selectedObjects: (Shape | Polygon | Cartesian)[];
+    selectedObjects: (Shape | Polygon)[];
     selectedObject: number = 0;
     selectedTool: Tool;
     mouseSnap: boolean = true;
     constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement) {
         this.selectedParentShape = Game.GAME.model;
         this.selectedObjects = [Game.GAME.model];
+        this.selectObject(0);
         this.selectParentShape();
     }
     toJSON() {
@@ -490,34 +501,44 @@ class UserInterface {
         return new Cartesian(x, y);
     }
     renderGUI(camera: Camera): void {
+        // selected parent shape
         drawArc(camera.canvas, camera.realToCanvas(this.selectedParentShape.origin).arr, 10, 0, 2 * Math.PI, "blue", 2);
-    }
-    checkMouse(shape: Shape = Game.GAME.model): (Shape | Polygon | Cartesian)[] {
-        const realMouseCoords = this.snappedMouseCoords;
-        let result: (Shape | Polygon | Cartesian)[] = []
-        if (shape.origin.eq(realMouseCoords)) {
-            result.push(shape);
+        if (0 < this.selectedObjects.length) {
+            const selectedObject = this.selectedObjects[this.selectedObject];
+            switch ((selectedObject as Identified).identify()) {
+                case "Shape":
+                    drawArc(camera.canvas, camera.realToCanvas((selectedObject as Shape).origin).arr, 10, 0, 2 * Math.PI, "green", 2);
+                    break;
+                case "Polygon":
+                    const points = (selectedObject as Polygon).points.map(p => camera.realToCanvas(p).arr);
+                    drawPolyline(camera.canvas, [...points, points[0]], "red");
+                    break;
+            }
         }
-        shape.shapes.forEach(s => {
-            result = result.concat(this.checkMouse(s));
-        });
+    }
+    checkMouse(shape: Shape, mouseCoords: Cartesian): (Shape | Polygon)[] {
+        if (!shape.evaluated) {
+            console.log("ERROR checkMouse: shape not evaluated");
+            return null;
+        }
+        let result: (Shape | Polygon)[] = [];
+        if (new Cartesian(Math.round(shape.origin.x), Math.round(shape.origin.y)) === mouseCoords) {
+            result.push(shape.original);
+        }
         shape.polygons.forEach(poly => {
-            poly.points.forEach(point => {
-                if (point.eq(realMouseCoords)) {
-                    if (!result.includes(poly)) {
-                        result.push(poly);
-                    }
-                    result.push(point);
+            poly.points.forEach(p => {
+                if (new Cartesian(Math.round(p.x), Math.round(p.y)).eq(mouseCoords) && !result.includes(poly)) {
+                    result.push(poly.original);
                 }
             });
         });
+        shape.shapes.forEach(s => {
+            result = result.concat(this.checkMouse(s, mouseCoords));
+        });
         return result;
     }
-    showSelectBox(): void {
-
-    }
     selectObjects(): void {
-        const mouseCheck = this.checkMouse();
+        const mouseCheck = this.checkMouse(Game.GAME.model.evaluate(), this.snappedMouseCoords);
         if (0 < mouseCheck.length) {
             this.selectedObjects = mouseCheck;
             this.selectObject(0);
@@ -532,7 +553,7 @@ class UserInterface {
         const input = document.createElement("input") as HTMLInputElement;
         input.id = "selectedObject";
         input.type = "number";
-        input.min = "0";
+        input.min = "1";
         input.max = "" + this.selectedObjects.length;
         input.style.width = "4ch";
         input.value = (idx + 1) + "";
@@ -542,16 +563,14 @@ class UserInterface {
         this.selectionDiv.appendChild(input);
         this.selectedObject = idx;
         const selectedObject = this.selectedObjects[this.selectedObject];
-        this.showSelectBox();
         switch ((selectedObject as Identified).identify()) {
             case "Shape":
-                this.selectionDiv.appendChild(createTextSpan("Shape"));
+                const shape = selectedObject as Shape;
+                this.selectionDiv.appendChild(createTextSpan("Shape", "green"));
+                // this.selectionDiv.appendChild(createTextSpan())
                 break;
             case "Polygon":
                 this.selectionDiv.appendChild(createTextSpan("Polygon"));
-                break;
-            case "Cartesian":
-                this.selectionDiv.appendChild(createTextSpan("Polygon Point"));
                 break;
         }
 
