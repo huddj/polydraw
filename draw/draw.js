@@ -256,8 +256,6 @@ class Input {
     constructor() {
         this.keyHandlers = new Map();
         this.canvasMouseCoords = [0, 0];
-        this.keyHandlers.set("adAX", new QAxis(["a", "d"], (state) => { }));
-        this.keyHandlers.set("spcB", new Button([" "], (down) => { }));
         this.keyHandlers.set("udAX", new QAxis(["arrowup", "arrowdown"], () => { }));
         this.keyHandlers.set("lrAX", new QAxis(["arrowleft", "arrowright"], () => { }));
         this.keyHandlers.set("minB", new Button(["-"], (down) => { if (down) {
@@ -266,13 +264,6 @@ class Input {
         this.keyHandlers.set("eqB", new Button(["="], (down) => { if (down) {
             Game.GAME.camera.height *= 0.8;
         } }));
-        this.keyHandlers.set("escB", new Button(["escape"], (down) => {
-            if (down) {
-                Game.GAME.camera.toggleFrames();
-                Game.GAME.camera.canvas.style.cursor = Game.GAME.playingInterval ? "none" : "auto";
-            }
-        }));
-        this.keyHandlers.set("wB", new Button(["w"], (down) => { }));
     }
     get realMouseCoords() {
         const camera = Game.GAME.camera;
@@ -324,8 +315,6 @@ class Game {
 }
 Game.SETUP = () => {
     const canvas = document.getElementById("canvas");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
     console.log("cavnas registered", "width", canvas.width, "height", canvas.height);
     const camera = new Camera(canvas, new Cartesian(0, 0), 500);
     Game.GAME = new Game(camera);
@@ -385,7 +374,6 @@ class Camera {
         };
     }
     renderShapes(camera) {
-        const horMin = camera.position.x - camera.radius[0], verMin = camera.position.y - camera.radius[1];
         const s = Game.GAME.model;
         const polygons = Shape.GETEVALUATEDPOLYGONS(s.evaluate()).sort((a, b) => a.layer - b.layer);
         polygons.forEach(poly => {
@@ -395,7 +383,7 @@ class Camera {
     }
     renderGUI(camera) {
         //mouse pointer
-        drawArc(camera.canvas, Input.INPUT.canvasMouseCoords, 4, 0, 2 * Math.PI, "white", 2);
+        drawArc(camera.canvas, Input.INPUT.canvasMouseCoords, 4, 0, 2 * Math.PI, "black", 2);
     }
 }
 function startDraw() {

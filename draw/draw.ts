@@ -278,24 +278,16 @@ class Input { //singleton
         ];
     }
     constructor() {
-        this.keyHandlers.set("adAX", new QAxis(["a", "d"], (state: number) => {}));
-        this.keyHandlers.set("spcB", new Button([" "], (down: boolean) => {}));
         this.keyHandlers.set("udAX", new QAxis(["arrowup", "arrowdown"], () => {}));
         this.keyHandlers.set("lrAX", new QAxis(["arrowleft", "arrowright"], () => {}));
         this.keyHandlers.set("minB", new Button(["-"], (down: boolean) => {if (down) {Game.GAME.camera.height *= 1.25;}}));
         this.keyHandlers.set("eqB", new Button(["="], (down: boolean) => {if (down) {Game.GAME.camera.height *= 0.8;}}));
-        this.keyHandlers.set("escB", new Button(["escape"], (down: boolean) => {if (down) {
-            Game.GAME.camera.toggleFrames();
-            Game.GAME.camera.canvas.style.cursor = Game.GAME.playingInterval ? "none" : "auto";
-        }}));
-        this.keyHandlers.set("wB", new Button(["w"], (down: boolean) => {}));
     }
 }
 class Game { //singleton
     static GAME: Game;
     static SETUP = () => {
         const canvas = document.getElementById("canvas") as HTMLCanvasElement;
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
         console.log("cavnas registered", "width", canvas.width, "height", canvas.height);
         const camera = new Camera(canvas, new Cartesian(0, 0), 500);
         Game.GAME = new Game(camera);
@@ -380,7 +372,6 @@ class Camera {
         };
     }
     renderShapes(camera: Camera): void {
-        const horMin = camera.position.x - camera.radius[0], verMin = camera.position.y - camera.radius[1];
         const s = Game.GAME.model;
         const polygons = Shape.GETEVALUATEDPOLYGONS(s.evaluate()).sort((a, b) => a.layer - b.layer);
         polygons.forEach(poly => {
@@ -390,7 +381,7 @@ class Camera {
     }
     renderGUI(camera: Camera): void {
         //mouse pointer
-        drawArc(camera.canvas, Input.INPUT.canvasMouseCoords, 4, 0, 2 * Math.PI, "white", 2);
+        drawArc(camera.canvas, Input.INPUT.canvasMouseCoords, 4, 0, 2 * Math.PI, "black", 2);
     }
 }
 

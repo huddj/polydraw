@@ -6,13 +6,19 @@
 <style>
 canvas {
     cursor: none;
-    background-color: black;
 }
 body {
     background-color: white;
     margin: 0 0;
-    overflow: hidden;
-    user-select: none;
+}
+main {
+    display: flex;
+}
+h1 {
+    text-align: center;
+}
+textarea {
+    width: 100%;
 }
 </style>
 <script src="draw.js"></script>
@@ -30,9 +36,11 @@ window.onload = init;
 </script>
 </head>
 <body>
-
-<canvas id="canvas" width="600" height="600">
-
+<h1>Polydraw</h1>
+<main>
+<canvas id="canvas" width="600" height="600"></canvas>
+<textarea name="modelJSON"></textarea>
+</main>
 <footer>
 <a id="vLink1"><strong> HTML </strong> Valid! </a> |
 <a id="vLink2"><strong> CSS </strong> Valid! </a>
