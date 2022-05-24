@@ -309,9 +309,18 @@ class Input {
         this.keyHandlers.set("aB", new Button(["a"], (down) => { if (down) {
             Game.GAME.userInterface.selectParentShape();
         } }, Game.GAME.camera.canvas));
-        this.keyHandlers.set("mouseB", new Button(["mouse"], (down) => { if (down) {
-            Game.GAME.userInterface.selectObjects();
-        } }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("mouseB", new Button(["mouse"], (down) => {
+            if (down) {
+                switch (Game.GAME.userInterface.selectedTool) {
+                    case Tool.select:
+                        Game.GAME.userInterface.selectObjects();
+                        break;
+                    case Tool.shape:
+                        Game.GAME.userInterface.createShape();
+                        break;
+                }
+            }
+        }, Game.GAME.camera.canvas));
         this.keyHandlers.set("escapeB", new Button(["escape"], (down) => { if (down) {
             Game.GAME.camera.canvas.focus();
         } }, document.body));
@@ -320,6 +329,20 @@ class Input {
                 Game.GAME.userInterface.selectedObjects = [Game.GAME.model.evaluate()];
                 Game.GAME.userInterface.selectObject(0);
                 Game.GAME.userInterface.selectParentShape();
+            }
+        }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("sB", new Button(["s"], (down) => {
+            if (down) {
+                if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                    Game.GAME.userInterface.drawCommands.set("shape create pointer command", (camera) => {
+                        drawArc(camera.canvas, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, 10, 0, 2 * Math.PI, "green", 2);
+                    });
+                    Game.GAME.userInterface.selectedTool = Tool.shape;
+                }
+                else {
+                    Game.GAME.userInterface.drawCommands.delete("shape create pointer command");
+                    Game.GAME.userInterface.selectedTool = Tool.select;
+                }
             }
         }, Game.GAME.camera.canvas));
     }
@@ -493,7 +516,12 @@ class Camera {
 }
 var Tool;
 (function (Tool) {
-    Tool[Tool["move"] = 0] = "move";
+    Tool[Tool["select"] = 0] = "select";
+    Tool[Tool["move"] = 1] = "move";
+    Tool[Tool["delete"] = 2] = "delete";
+    Tool[Tool["shape"] = 3] = "shape";
+    Tool[Tool["point"] = 4] = "point";
+    Tool[Tool["poly"] = 5] = "poly";
 })(Tool || (Tool = {}));
 class UserInterface {
     constructor(textArea, parentShapeDiv, selectionDiv) {
@@ -503,6 +531,7 @@ class UserInterface {
         this.gridSize = 5;
         this.selectedObject = 0;
         this.selectedPoint = 0;
+        this.selectedTool = Tool.select;
         this.mouseSnap = true;
         this.drawCommands = new Map();
         this.selectedObjects = [Game.GAME.model.evaluate()];
@@ -535,7 +564,7 @@ class UserInterface {
     }
     renderGUI(camera) {
         // selected parent shape
-        drawArc(camera.canvas, camera.realToCanvas(this.selectedParentShape.original.origin).arr, 10, 0, 2 * Math.PI, "blue", 2);
+        drawArc(camera.canvas, camera.realToCanvas(this.selectedParentShape.origin).arr, 10, 0, 2 * Math.PI, "blue", 2);
         if (0 < this.selectedObjects.length) {
             const selectedObject = this.selectedObjects[this.selectedObject];
             switch (selectedObject.identify()) {
@@ -758,6 +787,46 @@ class UserInterface {
             const origin = me.selectedParentShape.origin;
             this.parentShapeDiv.appendChild(createTextSpan("at " + new Cartesian(Math.round(origin.x), Math.round(origin.y)).arr.toString()));
         }
+    }
+    getEvaluatedObject(match, evalled) {
+        if (match === evalled.original) {
+            return evalled;
+        }
+        else {
+            for (let i = 0; i < evalled.polygons.length; i++) {
+                const poly = evalled.polygons[i];
+                if (match === poly.original) {
+                    return poly;
+                }
+            }
+            for (let i = 0; i < evalled.shapes.length; i++) {
+                const object = this.getEvaluatedObject(match, evalled.shapes[i]);
+                if (object !== null) {
+                    return object;
+                }
+            }
+        }
+        return null;
+    }
+    createShape() {
+        this.drawCommands.delete("shape create pointer command");
+        const mouseCoords = this.snappedMouseCoords;
+        const shapeCoords = new Cartesian(Math.round(mouseCoords.x - this.selectedParentShape.origin.x), Math.round(mouseCoords.y - this.selectedParentShape.origin.y));
+        const newShape = new Shape("default", shapeCoords, [], []);
+        this.selectedParentShape.original.shapes.push(newShape);
+        this.selectedObjects = [this.getEvaluatedObject(newShape, Game.GAME.model.evaluate())];
+        this.selectObject(0);
+        this.refreshModel();
+        this.selectedTool = Tool.select;
+    }
+    refreshModel() {
+        const selected = this.selectedObjects[this.selectedObject].original;
+        const parented = this.selectedParentShape.original;
+        this.selectedObjects = [this.getEvaluatedObject(parented, Game.GAME.model.evaluate())];
+        this.selectObject(0);
+        this.selectParentShape();
+        this.selectedObjects = [this.getEvaluatedObject(selected, Game.GAME.model.evaluate())];
+        this.selectObject(0);
     }
 }
 function startDraw() {
