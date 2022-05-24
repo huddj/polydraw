@@ -651,10 +651,11 @@ class UserInterface {
                     const polygonChildButton = document.createElement("button");
                     const drawCommandName = i + " polygon highlight command";
                     polygonChildButton.appendChild(document.createTextNode("P" + (i + 1)));
+                    polygonChildButton.style.color = poly.lineOnly ? "purple" : "red";
                     polygonChildButton.onmouseenter = () => {
                         me.drawCommands.set(drawCommandName, (camera: Camera) => {
                             const points = poly.points.map(p => camera.realToCanvas(p).arr);
-                            drawPolyline(camera.canvas, [...points, points[0]], "red");
+                            drawPolyline(camera.canvas, [...points, points[0]], poly.lineOnly ? "purple" : "red");
                         });
                     }
                     polygonChildButton.onmouseleave = () => {
