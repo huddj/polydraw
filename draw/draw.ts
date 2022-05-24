@@ -472,7 +472,7 @@ class UserInterface {
     mouseSnap: boolean = true;
     constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement) {
         this.selectedParentShape = Game.GAME.model;
-        this.selectedObjects = [Game.GAME.model];
+        this.selectedObjects = [Game.GAME.model.evaluate()];
         this.selectObject(0);
         this.selectParentShape();
     }
@@ -522,13 +522,14 @@ class UserInterface {
             return null;
         }
         let result: (Shape | Polygon)[] = [];
-        if (new Cartesian(Math.round(shape.origin.x), Math.round(shape.origin.y)) === mouseCoords) {
-            result.push(shape.original);
+        shape.origin = new Cartesian(Math.round(shape.origin.x), Math.round(shape.origin.y));
+        if (shape.origin.eq(mouseCoords)) {
+            result.push(shape);
         }
         shape.polygons.forEach(poly => {
             poly.points.forEach(p => {
                 if (new Cartesian(Math.round(p.x), Math.round(p.y)).eq(mouseCoords) && !result.includes(poly)) {
-                    result.push(poly.original);
+                    result.push(poly);
                 }
             });
         });
@@ -551,7 +552,6 @@ class UserInterface {
         });
         this.selectionDiv.appendChild(createTextSpan("(" + this.selectedObjects.length + " option" + (this.selectedObjects.length === 1 ? "" : "s")  + ")"));
         const input = document.createElement("input") as HTMLInputElement;
-        input.id = "selectedObject";
         input.type = "number";
         input.min = "1";
         input.max = "" + this.selectedObjects.length;
@@ -567,7 +567,15 @@ class UserInterface {
             case "Shape":
                 const shape = selectedObject as Shape;
                 this.selectionDiv.appendChild(createTextSpan("Shape", "green"));
-                // this.selectionDiv.appendChild(createTextSpan())
+                this.selectionDiv.appendChild(createTextSpan("name:"));
+                const shapeNameInput = document.createElement("input");
+                shapeNameInput.type = "text";
+                shapeNameInput.size = 10;
+                shapeNameInput.value = shape.original.name;
+                shapeNameInput.onchange = () => {
+                    shape.original.name = shapeNameInput.value;
+                }
+                this.selectionDiv.appendChild(shapeNameInput);
                 break;
             case "Polygon":
                 this.selectionDiv.appendChild(createTextSpan("Polygon"));
@@ -577,7 +585,7 @@ class UserInterface {
     }
     selectParentShape(): void {
         if ((this.selectedObjects[this.selectedObject] as Identified).identify() === "Shape") {
-            this.selectedParentShape = this.selectedObjects[this.selectedObject] as Shape;
+            this.selectedParentShape = (this.selectedObjects[this.selectedObject] as Shape).original;
             this.parentShapeDiv.innerHTML = this.selectedParentShape.name + " at: " + this.selectedParentShape.origin.toString();
         }
     }
