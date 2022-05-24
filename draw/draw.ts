@@ -539,9 +539,9 @@ class UserInterface {
                 case "Polygon":
                     const polygon = (selectedObject as Polygon);
                     const points = polygon.points.map(p => camera.realToCanvas(p).arr);
-                    drawPolyline(camera.canvas, [...points, points[0]], "red");
+                    drawPolyline(camera.canvas, [...points, points[0]], polygon.lineOnly ? "purple" : "red");
                     if (this.selectedPoint !== 0 && this.selectedPoint <= polygon.points.length) {
-                        drawArc(camera.canvas, camera.realToCanvas(polygon.points[this.selectedPoint - 1]).arr, 5, 0, 2 * Math.PI, "red", 2);
+                        drawArc(camera.canvas, camera.realToCanvas(polygon.points[this.selectedPoint - 1]).arr, 5, 0, 2 * Math.PI, polygon.lineOnly ? "purple" : "red", 2);
                     }
                     break;
             }
@@ -671,12 +671,12 @@ class UserInterface {
             case "Polygon":
                 const polygon = selectedObject as Polygon
                 const nameButton = document.createElement("button");
-                nameButton.appendChild(document.createTextNode("Polygon"));
-                nameButton.style.color = "red";
+                nameButton.appendChild(document.createTextNode(polygon.lineOnly ? "Polyline" : "Polygon"));
+                nameButton.style.color = polygon.lineOnly ? "purple" : "red";
                 nameButton.onclick = () => {
                     me.selectedPoint = 0;
                     Array.from(me.selectionDiv.children).forEach(c => {
-                        if ((c as HTMLElement).style.backgroundColor === "red") {
+                        if ((c as HTMLElement).style.backgroundColor === (polygon.lineOnly ? "purple" : "red")) {
                             (c as HTMLElement).style.backgroundColor = "";
                         }
                     });
@@ -715,11 +715,11 @@ class UserInterface {
                     }
                     pointChildButton.onclick = () => {
                         Array.from(me.selectionDiv.children).forEach(c => {
-                            if ((c as HTMLElement).style.backgroundColor === "red") {
+                            if ((c as HTMLElement).style.backgroundColor === (polygon.lineOnly ? "purple" : "red")) {
                                 (c as HTMLElement).style.backgroundColor = "";
                             }
                         });
-                        pointChildButton.style.backgroundColor = "red";
+                        pointChildButton.style.backgroundColor = polygon.lineOnly ? "purple" : "red";
                         me.selectedPoint = i + 1;
                     }
                     this.selectionDiv.appendChild(pointChildButton);
