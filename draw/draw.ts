@@ -705,7 +705,7 @@ class UserInterface {
                 polygon.points.forEach((p, i) => {
                     const pointChildButton = document.createElement("button");
                     const drawCommandName = (i + 1) + " point highlight command";
-                    pointChildButton.appendChild(document.createTextNode(new Cartesian(Math.round(p.x), Math.round(p.y)).arr.toString()));
+                    pointChildButton.appendChild(document.createTextNode(polygon.original.points[i].arr.toString()));
                     pointChildButton.onmouseenter = () => {
                         me.drawCommands.set(drawCommandName, (camera: Camera) => {
                             drawArc(camera.canvas, camera.realToCanvas(p).arr, 5, 0, 2 * Math.PI, "orange", 2);
