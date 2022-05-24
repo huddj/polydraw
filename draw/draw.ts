@@ -373,6 +373,12 @@ class Input { //singleton
         }}}, Game.GAME.camera.canvas));
         this.keyHandlers.set("dB", new Button(["d"], (down: boolean) => {if (down) {Game.GAME.userInterface.deleteObject();}}, Game.GAME.camera.canvas));
         this.keyHandlers.set("shiftB", new Button(["shift"], (down: boolean) => {}, document.body));
+        this.keyHandlers.set("bB", new Button(["b"], (down: boolean) => {if (down) {
+            const parent = Game.GAME.userInterface.getEvaluatedParent(Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject].original, Game.GAME.model.evaluate());
+            if (parent !== null) {
+                Game.GAME.userInterface.selectedObjects = [parent];
+                Game.GAME.userInterface.selectObject(0);
+        }}}, Game.GAME.camera.canvas));
     }
 }
 class Game { //singleton
@@ -857,7 +863,7 @@ class UserInterface {
                 break;
         }
     }
-    getEvaluatedParent(match: Shape | Polygon, evalled: Shape): Shape | Polygon {
+    getEvaluatedParent(match: Shape | Polygon, evalled: Shape): Shape {
         for (let i = 0; i < evalled.polygons.length; i++) {
             if (match === evalled.polygons[i].original) {
                 return evalled;
@@ -867,7 +873,7 @@ class UserInterface {
             if (match === evalled.shapes[i].original) {
                 return evalled;
             } else {
-                const object = this.getEvaluatedObject(match, evalled.shapes[i]);
+                const object = this.getEvaluatedParent(match, evalled.shapes[i]);
                 if (object !== null) {
                     return object;
                 }

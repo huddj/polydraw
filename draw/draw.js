@@ -349,6 +349,15 @@ class Input {
             Game.GAME.userInterface.deleteObject();
         } }, Game.GAME.camera.canvas));
         this.keyHandlers.set("shiftB", new Button(["shift"], (down) => { }, document.body));
+        this.keyHandlers.set("bB", new Button(["b"], (down) => {
+            if (down) {
+                const parent = Game.GAME.userInterface.getEvaluatedParent(Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject].original, Game.GAME.model.evaluate());
+                if (parent !== null) {
+                    Game.GAME.userInterface.selectedObjects = [parent];
+                    Game.GAME.userInterface.selectObject(0);
+                }
+            }
+        }, Game.GAME.camera.canvas));
     }
     get realMouseCoords() {
         const camera = Game.GAME.camera;
@@ -884,7 +893,7 @@ class UserInterface {
                 return evalled;
             }
             else {
-                const object = this.getEvaluatedObject(match, evalled.shapes[i]);
+                const object = this.getEvaluatedParent(match, evalled.shapes[i]);
                 if (object !== null) {
                     return object;
                 }
