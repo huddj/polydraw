@@ -347,6 +347,11 @@ class Input { //singleton
         this.keyHandlers.set("aB", new Button(["a"], (down: boolean) => {if (down) {Game.GAME.userInterface.selectParentShape();}}, Game.GAME.camera.canvas));
         this.keyHandlers.set("mouseB", new Button(["mouse"], (down: boolean) => {if (down) {Game.GAME.userInterface.selectObjects();}}, Game.GAME.camera.canvas));
         this.keyHandlers.set("escapeB", new Button(["escape"], (down: boolean) => {if (down) {Game.GAME.camera.canvas.focus();}}, document.body));
+        this.keyHandlers.set("rB", new Button(["r"], (down: boolean) => {if (down) {
+            Game.GAME.userInterface.selectedObjects = [Game.GAME.model.evaluate()];
+            Game.GAME.userInterface.selectObject(0);
+            Game.GAME.userInterface.selectParentShape();
+        }}, Game.GAME.camera.canvas));
     }
 }
 class Game { //singleton
@@ -375,6 +380,7 @@ class Game { //singleton
             [
                 new Polygon([[30, 5], [25, 10], [5, 15], [-20, 15], [-20, 10], [-15, 5], [-15, -5], [-20, -10], [-20, -15], [5, -15], [25, -10], [30, -5]], "DarkGrey", 0),
                 new Polygon([[20, 5], [10, 10], [5, 5], [5, -5], [10, -10], [20, -5]], "CornflowerBlue", 1),
+                new Polygon([[20, 5], [10, 10], [5, 5], [5, -5], [10, -10], [20, -5], [20, 5]], "DarkBlue", 1, true),
                 new Polygon([[5, 0], [-5, 5], [-15, 0], [-5, -5]], "DarkRed", 1),
                 new Polygon([[-10, 5], [-10, 20], [-30, 15], [-30, 10]], "DimGrey", 1),
                 new Polygon([[-10, -5], [-10, -20], [-30, -15], [-30, -10]], "DimGrey", 1),
@@ -463,7 +469,11 @@ class Camera {
         const polygons = Shape.ALLPOLYGONS(s.evaluate()).sort((a, b) => a.layer - b.layer);
         polygons.forEach(poly => {
             const points = poly.points.map((p): [number,number] => {const cP = camera.realToCanvas(p); return [cP.x, cP.y]});
-            drawPolygon(this.canvas, points, poly.color);
+            if (poly.lineOnly) {
+                drawPolyline(this.canvas, points, poly.color);
+            } else {
+                drawPolygon(this.canvas, points, poly.color);
+            }
         });
     }
     renderGUI(camera: Camera): void {
@@ -483,6 +493,7 @@ class UserInterface {
     selectedParentShape: Shape;
     selectedObjects: (Shape | Polygon)[];
     selectedObject: number = 0;
+    selectedPoint: number = 0;
     selectedTool: Tool;
     mouseSnap: boolean = true;
     drawCommands: Map<string, (camera: Camera) => void> = new Map<string, (camera: Camera) => void>();
@@ -522,14 +533,20 @@ class UserInterface {
             const selectedObject = this.selectedObjects[this.selectedObject];
             switch ((selectedObject as Identified).identify()) {
                 case "Shape":
-                    drawArc(camera.canvas, camera.realToCanvas((selectedObject as Shape).origin).arr, 10, 0, 2 * Math.PI, "green", 2);
+                    const shape = (selectedObject as Shape);
+                    drawArc(camera.canvas, camera.realToCanvas(shape.origin).arr, 10, 0, 2 * Math.PI, "green", 2);
                     break;
                 case "Polygon":
-                    const points = (selectedObject as Polygon).points.map(p => camera.realToCanvas(p).arr);
+                    const polygon = (selectedObject as Polygon);
+                    const points = polygon.points.map(p => camera.realToCanvas(p).arr);
                     drawPolyline(camera.canvas, [...points, points[0]], "red");
+                    if (this.selectedPoint !== 0 && this.selectedPoint <= polygon.points.length) {
+                        drawArc(camera.canvas, camera.realToCanvas(polygon.points[this.selectedPoint - 1]).arr, 5, 0, 2 * Math.PI, "red", 2);
+                    }
                     break;
             }
         }
+
         Array.from(this.drawCommands.values()).forEach(command => {
             command(camera);
         });
@@ -560,6 +577,7 @@ class UserInterface {
         const mouseCheck = this.checkMouse(Game.GAME.model.evaluate(), this.snappedMouseCoords);
         if (0 < mouseCheck.length) {
             this.selectedObjects = mouseCheck;
+            this.selectedPoint = 0;
             this.selectObject(0);
         }
     }
@@ -570,23 +588,26 @@ class UserInterface {
         });
         if (1 < this.selectedObjects.length) {
             this.selectionDiv.appendChild(createTextSpan("(" + this.selectedObjects.length + " option" + (this.selectedObjects.length === 1 ? "" : "s")  + ")"));
-            const input = document.createElement("input") as HTMLInputElement;
-            input.type = "number";
-            input.min = "1";
-            input.max = "" + this.selectedObjects.length;
-            input.style.width = "4ch";
-            input.value = (idx + 1) + "";
-            input.onchange = () => {
-                me.selectObject(parseInt(input.value) - 1);
+            const switchSelectedInput = document.createElement("input") as HTMLInputElement;
+            switchSelectedInput.type = "number";
+            switchSelectedInput.min = "1";
+            switchSelectedInput.max = "" + this.selectedObjects.length;
+            switchSelectedInput.style.width = "4ch";
+            switchSelectedInput.value = (idx + 1) + "";
+            switchSelectedInput.onchange = () => {
+                me.selectObject(parseInt(switchSelectedInput.value) - 1);
+                if (0 < parseInt(switchSelectedInput.value) - 1) {
+                    me.selectedPoint = 0;
+                }
             };
-            this.selectionDiv.appendChild(input);
+            this.selectionDiv.appendChild(switchSelectedInput);
         }
         this.selectedObject = idx;
         const selectedObject = this.selectedObjects[this.selectedObject];
         switch ((selectedObject as Identified).identify()) {
             case "Shape":
                 const shape = selectedObject as Shape;
-                this.selectionDiv.appendChild(createTextSpan("Shape", "green"));
+                this.selectionDiv.appendChild(createTextSpan(shape.root ? "Root" : "Shape", "green"));
                 this.selectionDiv.appendChild(createTextSpan("name:"));
                 const shapeNameInput = document.createElement("input");
                 shapeNameInput.type = "text";
@@ -595,6 +616,7 @@ class UserInterface {
                 shapeNameInput.onchange = () => {
                     shape.original.name = shapeNameInput.value;
                 }
+                this.selectionDiv.appendChild(shapeNameInput);
                 this.selectionDiv.appendChild(createTextSpan("origin:"));
                 const shapeOriginInput = document.createElement("input");
                 shapeOriginInput.type = "text";
@@ -648,7 +670,19 @@ class UserInterface {
                 break;
             case "Polygon":
                 const polygon = selectedObject as Polygon
-                this.selectionDiv.appendChild(createTextSpan("Polygon", "red"));
+                const nameButton = document.createElement("button");
+                nameButton.appendChild(document.createTextNode("Polygon"));
+                nameButton.style.color = "red";
+                nameButton.onclick = () => {
+                    me.selectedPoint = 0;
+                    Array.from(me.selectionDiv.children).forEach(c => {
+                        if ((c as HTMLElement).style.backgroundColor === "red") {
+                            (c as HTMLElement).style.backgroundColor = "";
+                        }
+                    });
+                }
+                this.selectionDiv.appendChild(nameButton);
+                this.selectionDiv.appendChild(createTextSpan("color:"));
                 const polyColorInput = document.createElement("input");
                 polyColorInput.type = "text";
                 polyColorInput.size = 10;
@@ -657,6 +691,39 @@ class UserInterface {
                     polygon.original.color = polyColorInput.value;
                 }
                 this.selectionDiv.appendChild(polyColorInput);
+                this.selectionDiv.appendChild(createTextSpan("layer:"));
+                const layerInput = document.createElement("input");
+                layerInput.type = "number";
+                layerInput.style.width = "4ch";
+                layerInput.value = "" + polygon.original.layer;
+                layerInput.onchange = () => {
+                    polygon.original.layer = parseInt(layerInput.value);
+                };
+                this.selectionDiv.appendChild(layerInput);
+                this.selectionDiv.appendChild(createTextSpan("points:"));
+                polygon.points.forEach((p, i) => {
+                    const pointChildButton = document.createElement("button");
+                    const drawCommandName = (i + 1) + " point highlight command";
+                    pointChildButton.appendChild(document.createTextNode(new Cartesian(Math.round(p.x), Math.round(p.y)).arr.toString()));
+                    pointChildButton.onmouseenter = () => {
+                        me.drawCommands.set(drawCommandName, (camera: Camera) => {
+                            drawArc(camera.canvas, camera.realToCanvas(p).arr, 5, 0, 2 * Math.PI, "orange", 2);
+                        });
+                    }
+                    pointChildButton.onmouseleave = () => {
+                        me.drawCommands.delete(drawCommandName);
+                    }
+                    pointChildButton.onclick = () => {
+                        Array.from(me.selectionDiv.children).forEach(c => {
+                            if ((c as HTMLElement).style.backgroundColor === "red") {
+                                (c as HTMLElement).style.backgroundColor = "";
+                            }
+                        });
+                        pointChildButton.style.backgroundColor = "red";
+                        me.selectedPoint = i + 1;
+                    }
+                    this.selectionDiv.appendChild(pointChildButton);
+                });
                 break;
         }
 
@@ -685,7 +752,8 @@ class UserInterface {
                 me.selectObject(0);
             }
             this.parentShapeDiv.appendChild(selectParentButton);
-            this.parentShapeDiv.appendChild(createTextSpan("at " + me.selectedParentShape.origin.arr.toString()));
+            const origin = me.selectedParentShape.origin
+            this.parentShapeDiv.appendChild(createTextSpan("at " + new Cartesian(Math.round(origin.x), Math.round(origin.y)).arr.toString()));
         }
     }
 }
