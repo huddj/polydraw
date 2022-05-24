@@ -99,6 +99,15 @@ function createTextSpan(text: string, color: string = null): HTMLSpanElement {
     span.appendChild(document.createTextNode(text));
     return span;
 }
+function getElementTree(element: Element): Element[] {
+    const result = [element];
+    let current = element;
+    while (current !== document.body) {
+        current = current.parentElement;
+        result.push(current);
+    }
+    return result;
+}
 interface Identified {
     identify(): string;
 }
@@ -248,33 +257,38 @@ class Force {
     }
 }
 interface KeyHandler {
-    change(key: string, down: boolean): void;
+    change(key: string, down: boolean, activeElement: Element): void;
+    focusedElement: Element;
     keys: string[];
     state: number | boolean;
 }
 class Button implements KeyHandler {
     keys: string[];
     state: boolean = false;
-    constructor(keys: string[], public handler: (down: boolean) => void) {
+    constructor(keys: string[], public handler: (down: boolean) => void, public focusedElement: Element) {
         this.keys = [keys[0]];
     }
-    change(key: string, down: boolean): void {
-        this.state = down;
-        this.handler(down);
+    change(key: string, down: boolean, activeElement: Element): void {
+        if (getElementTree(activeElement).includes(this.focusedElement)) {
+            this.state = down;
+            this.handler(down);
+        }
     }
 }
 class QAxis implements KeyHandler {
     keys: string[];
     state: number = 0;
     states: [number, number] = [0, 0];
-    constructor(keys: string[], public handler: (state: number) => void) {
+    constructor(keys: string[], public handler: (state: number) => void, public focusedElement: Element) {
         this.keys = [keys[0], keys[1]];
     }
-    change(key: string, down: boolean): void {
-        const idx = this.keys.findIndex(k => k === key);
-        this.states[idx] = down ? [-1, 1][idx] : 0;
-        this.state = this.states[0] + this.states[1];
-        this.handler(this.state);
+    change(key: string, down: boolean, activeElement: Element): void {
+        if (getElementTree(activeElement).includes(this.focusedElement)) {
+            const idx = this.keys.findIndex(k => k === key);
+            this.states[idx] = down ? [-1, 1][idx] : 0;
+            this.state = this.states[0] + this.states[1];
+            this.handler(this.state);
+        }
     }
 }
 class Input { //singleton
@@ -282,14 +296,14 @@ class Input { //singleton
     static SETUP = () => {
         Input.INPUT = new Input();
         document.addEventListener("keydown", (event: KeyboardEvent) => {
+            Input.KEYCHANGE(event.key.toLowerCase(), true);
             if (Game.GAME.camera.canvas === document.activeElement) {
-                Input.KEYCHANGE(event.key.toLowerCase(), true);
                 event.preventDefault();
             }
         });
         document.addEventListener("keyup", (event: KeyboardEvent) => {
+            Input.KEYCHANGE(event.key.toLowerCase(), false);
             if (Game.GAME.camera.canvas === document.activeElement) {
-                Input.KEYCHANGE(event.key.toLowerCase(), false);
                 event.preventDefault();
             }
         });
@@ -312,7 +326,7 @@ class Input { //singleton
     }
     static KEYCHANGE = (key: string, down: boolean) => {
         Array.from(Input.INPUT.keyHandlers.values()).filter(h => h.keys.some(k => key === k)).forEach(h => {
-            h.change(key, down);
+            h.change(key, down, document.activeElement);
         });
     }
     keyHandlers: Map<string, KeyHandler> = new Map<string, KeyHandler>();
@@ -326,12 +340,13 @@ class Input { //singleton
         ];
     }
     constructor() {
-        this.keyHandlers.set("udAX", new QAxis(["arrowup", "arrowdown"], () => {}));
-        this.keyHandlers.set("lrAX", new QAxis(["arrowleft", "arrowright"], () => {}));
-        this.keyHandlers.set("minB", new Button(["-"], (down: boolean) => {if (down) {Game.GAME.camera.height *= 1.25;}}));
-        this.keyHandlers.set("eqB", new Button(["="], (down: boolean) => {if (down) {Game.GAME.camera.height *= 0.8;}}));
-        this.keyHandlers.set("aB", new Button(["a"], (down: boolean) => {Game.GAME.userInterface.selectParentShape();}));
-        this.keyHandlers.set("mouseB", new Button(["mouse"], (down: boolean) => {Game.GAME.userInterface.selectObjects();}));
+        this.keyHandlers.set("udAX", new QAxis(["arrowup", "arrowdown"], () => {}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("lrAX", new QAxis(["arrowleft", "arrowright"], () => {}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("minB", new Button(["-"], (down: boolean) => {if (down) {Game.GAME.camera.height *= 1.25;}}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("eqB", new Button(["="], (down: boolean) => {if (down) {Game.GAME.camera.height *= 0.8;}}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("aB", new Button(["a"], (down: boolean) => {if (down) {Game.GAME.userInterface.selectParentShape();}}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("mouseB", new Button(["mouse"], (down: boolean) => {if (down) {Game.GAME.userInterface.selectObjects();}}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("escapeB", new Button(["escape"], (down: boolean) => {if (down) {Game.GAME.camera.canvas.focus();}}, document.body));
     }
 }
 class Game { //singleton
@@ -470,8 +485,8 @@ class UserInterface {
     selectedObject: number = 0;
     selectedTool: Tool;
     mouseSnap: boolean = true;
+    drawCommands: Map<string, (camera: Camera) => void> = new Map<string, (camera: Camera) => void>();
     constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement) {
-        this.selectedParentShape = Game.GAME.model;
         this.selectedObjects = [Game.GAME.model.evaluate()];
         this.selectObject(0);
         this.selectParentShape();
@@ -502,7 +517,7 @@ class UserInterface {
     }
     renderGUI(camera: Camera): void {
         // selected parent shape
-        drawArc(camera.canvas, camera.realToCanvas(this.selectedParentShape.origin).arr, 10, 0, 2 * Math.PI, "blue", 2);
+        drawArc(camera.canvas, camera.realToCanvas(this.selectedParentShape.original.origin).arr, 10, 0, 2 * Math.PI, "blue", 2);
         if (0 < this.selectedObjects.length) {
             const selectedObject = this.selectedObjects[this.selectedObject];
             switch ((selectedObject as Identified).identify()) {
@@ -515,6 +530,9 @@ class UserInterface {
                     break;
             }
         }
+        Array.from(this.drawCommands.values()).forEach(command => {
+            command(camera);
+        });
     }
     checkMouse(shape: Shape, mouseCoords: Cartesian): (Shape | Polygon)[] {
         if (!shape.evaluated) {
@@ -550,17 +568,19 @@ class UserInterface {
         Array.from(this.selectionDiv.children).forEach(element => {
             element.remove();
         });
-        this.selectionDiv.appendChild(createTextSpan("(" + this.selectedObjects.length + " option" + (this.selectedObjects.length === 1 ? "" : "s")  + ")"));
-        const input = document.createElement("input") as HTMLInputElement;
-        input.type = "number";
-        input.min = "1";
-        input.max = "" + this.selectedObjects.length;
-        input.style.width = "4ch";
-        input.value = (idx + 1) + "";
-        input.onchange = () => {
-            me.selectObject(parseInt(input.value) - 1);
-        };
-        this.selectionDiv.appendChild(input);
+        if (1 < this.selectedObjects.length) {
+            this.selectionDiv.appendChild(createTextSpan("(" + this.selectedObjects.length + " option" + (this.selectedObjects.length === 1 ? "" : "s")  + ")"));
+            const input = document.createElement("input") as HTMLInputElement;
+            input.type = "number";
+            input.min = "1";
+            input.max = "" + this.selectedObjects.length;
+            input.style.width = "4ch";
+            input.value = (idx + 1) + "";
+            input.onchange = () => {
+                me.selectObject(parseInt(input.value) - 1);
+            };
+            this.selectionDiv.appendChild(input);
+        }
         this.selectedObject = idx;
         const selectedObject = this.selectedObjects[this.selectedObject];
         switch ((selectedObject as Identified).identify()) {
@@ -575,18 +595,97 @@ class UserInterface {
                 shapeNameInput.onchange = () => {
                     shape.original.name = shapeNameInput.value;
                 }
-                this.selectionDiv.appendChild(shapeNameInput);
+                this.selectionDiv.appendChild(createTextSpan("origin:"));
+                const shapeOriginInput = document.createElement("input");
+                shapeOriginInput.type = "text";
+                shapeOriginInput.size = 5;
+                shapeOriginInput.value = JSON.stringify(shape.original.origin.arr);
+                shapeOriginInput.onchange = () => {
+                    shape.original.origin = new Cartesian(JSON.parse(shapeOriginInput.value));
+                }
+                this.selectionDiv.appendChild(shapeOriginInput);
+                this.selectionDiv.appendChild(createTextSpan("shapes:"));
+                shape.shapes.forEach(s => {
+                    const shapeChildButton = document.createElement("button");
+                    const drawCommandName = s.name.trim() + " shape highlight command";
+                    shapeChildButton.appendChild(document.createTextNode(s.original.origin.arr.toString()));
+                    shapeChildButton.onmouseenter = () => {
+                        me.drawCommands.set(drawCommandName, (camera: Camera) => {
+                            drawArc(camera.canvas, camera.realToCanvas(s.origin).arr, 5, 0, 2 * Math.PI, "green", 2);
+                        });
+                    }
+                    shapeChildButton.onmouseleave = () => {
+                        me.drawCommands.delete(drawCommandName);
+                    }
+                    shapeChildButton.onclick = () => {
+                        shapeChildButton.onmouseleave(null);
+                        me.selectedObjects = [s];
+                        me.selectObject(0);
+                    }
+                    this.selectionDiv.appendChild(shapeChildButton);
+                });
+                this.selectionDiv.appendChild(createTextSpan("polygons:"));
+                shape.polygons.forEach((poly, i) => {
+                    const polygonChildButton = document.createElement("button");
+                    const drawCommandName = i + " polygon highlight command";
+                    polygonChildButton.appendChild(document.createTextNode("P" + (i + 1)));
+                    polygonChildButton.onmouseenter = () => {
+                        me.drawCommands.set(drawCommandName, (camera: Camera) => {
+                            const points = poly.points.map(p => camera.realToCanvas(p).arr);
+                            drawPolyline(camera.canvas, [...points, points[0]], "red");
+                        });
+                    }
+                    polygonChildButton.onmouseleave = () => {
+                        me.drawCommands.delete(drawCommandName);
+                    }
+                    polygonChildButton.onclick = () => {
+                        polygonChildButton.onmouseleave(null);
+                        me.selectedObjects = [poly];
+                        me.selectObject(0);
+                    }
+                    this.selectionDiv.appendChild(polygonChildButton);
+                });
                 break;
             case "Polygon":
-                this.selectionDiv.appendChild(createTextSpan("Polygon"));
+                const polygon = selectedObject as Polygon
+                this.selectionDiv.appendChild(createTextSpan("Polygon", "red"));
+                const polyColorInput = document.createElement("input");
+                polyColorInput.type = "text";
+                polyColorInput.size = 10;
+                polyColorInput.value = polygon.original.color;
+                polyColorInput.onchange = () => {
+                    polygon.original.color = polyColorInput.value;
+                }
+                this.selectionDiv.appendChild(polyColorInput);
                 break;
         }
 
     }
     selectParentShape(): void {
         if ((this.selectedObjects[this.selectedObject] as Identified).identify() === "Shape") {
-            this.selectedParentShape = (this.selectedObjects[this.selectedObject] as Shape).original;
-            this.parentShapeDiv.innerHTML = this.selectedParentShape.name + " at: " + this.selectedParentShape.origin.toString();
+            const me = this;
+            this.selectedParentShape = (this.selectedObjects[this.selectedObject] as Shape);
+            Array.from(this.parentShapeDiv.children).forEach(element => {
+                element.remove();
+            });
+            const selectParentButton = document.createElement("button");
+            const drawCommandName = "highlight parent shape command";
+            selectParentButton.appendChild(document.createTextNode(this.selectedParentShape.original.name));
+            selectParentButton.onmouseenter = () => {
+                me.drawCommands.set(drawCommandName, (camera: Camera) => {
+                    drawArc(camera.canvas, camera.realToCanvas(me.selectedParentShape.origin).arr, 5, 0, 2 * Math.PI, "green", 2);
+                });
+            }
+            selectParentButton.onmouseleave = () => {
+                me.drawCommands.delete(drawCommandName);
+            }
+            selectParentButton.onclick = () => {
+                selectParentButton.onmouseleave(null);
+                me.selectedObjects = [me.selectedParentShape];
+                me.selectObject(0);
+            }
+            this.parentShapeDiv.appendChild(selectParentButton);
+            this.parentShapeDiv.appendChild(createTextSpan("at " + me.selectedParentShape.origin.arr.toString()));
         }
     }
 }
