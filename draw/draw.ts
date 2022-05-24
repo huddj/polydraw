@@ -582,6 +582,9 @@ class UserInterface {
         }
     }
     selectObject(idx: number): void {
+        if (0 < idx) {
+            this.selectedPoint = 0;
+        }
         const me = this;
         Array.from(this.selectionDiv.children).forEach(element => {
             element.remove();
@@ -596,9 +599,6 @@ class UserInterface {
             switchSelectedInput.value = (idx + 1) + "";
             switchSelectedInput.onchange = () => {
                 me.selectObject(parseInt(switchSelectedInput.value) - 1);
-                if (0 < parseInt(switchSelectedInput.value) - 1) {
-                    me.selectedPoint = 0;
-                }
             };
             this.selectionDiv.appendChild(switchSelectedInput);
         }
@@ -676,11 +676,8 @@ class UserInterface {
                 nameButton.style.color = polygon.lineOnly ? "purple" : "red";
                 nameButton.onclick = () => {
                     me.selectedPoint = 0;
-                    Array.from(me.selectionDiv.children).forEach(c => {
-                        if ((c as HTMLElement).style.backgroundColor === (polygon.lineOnly ? "purple" : "red")) {
-                            (c as HTMLElement).style.backgroundColor = "";
-                        }
-                    });
+                    me.selectedObjects = [polygon];
+                    me.selectObject(0);
                 }
                 this.selectionDiv.appendChild(nameButton);
                 this.selectionDiv.appendChild(createTextSpan("color:"));
