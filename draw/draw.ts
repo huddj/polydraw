@@ -353,6 +353,9 @@ class Input { //singleton
                 case Tool.shape:
                     Game.GAME.userInterface.createShape();
                     break;
+                case Tool.point:
+                    Game.GAME.userInterface.createPoint();
+                    break;
             }
         }}, Game.GAME.camera.canvas));
         this.keyHandlers.set("escapeB", new Button(["escape"], (down: boolean) => {if (down) {Game.GAME.camera.canvas.focus();}}, document.body));
@@ -367,7 +370,7 @@ class Input { //singleton
                     drawArc(camera.canvas, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, 10, 0, 2 * Math.PI, "green", 2);
                 });
                 Game.GAME.userInterface.selectedTool = Tool.shape;
-            } else {
+            } else if (Game.GAME.userInterface.selectedTool === Tool.shape) {
                 Game.GAME.userInterface.drawCommands.delete("shape create pointer command");
                 Game.GAME.userInterface.selectedTool = Tool.select;
         }}}, Game.GAME.camera.canvas));
@@ -379,6 +382,22 @@ class Input { //singleton
                 Game.GAME.userInterface.selectedObjects = [parent];
                 Game.GAME.userInterface.selectObject(0);
         }}}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("cB", new Button(["c"], (down: boolean) => {if (down) {
+            if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                const selected = Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject];
+                if ((selected as Identified).identify() === "Polygon") {
+                    const polygon = selected as Polygon;
+                    Game.GAME.userInterface.drawCommands.set("point create pointer command", (camera: Camera) => {
+                        drawArc(camera.canvas, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, 5, 0, 2 * Math.PI, polygon.lineOnly ? "purple" : "red", 2);
+                    });
+                    Game.GAME.userInterface.selectedTool = Tool.point;
+                }
+            } else if (Game.GAME.userInterface.selectedTool === Tool.point) {
+                Game.GAME.userInterface.drawCommands.delete("point create pointer command");
+                Game.GAME.userInterface.selectedTool = Tool.select;
+            }
+
+        }}, Game.GAME.camera.canvas));
     }
 }
 class Game { //singleton
@@ -513,12 +532,13 @@ class Camera {
     }
 }
 enum Tool {
-    select,
+    select, //done
     move,
-    delete,
-    shape,
-    point,
-    poly
+    delete, //done
+    shape, //done
+    point, //done
+    poly,
+    line
 }
 class UserInterface {
     gridSize: number = 5;
@@ -880,6 +900,22 @@ class UserInterface {
             }
         }
         return null;
+    }
+    createPoint(): void {
+        const selectedObject = this.selectedObjects[this.selectedObject];
+        if ((selectedObject as Identified).identify() === "Polygon") {
+            const polygon = selectedObject as Polygon;
+            const parent = this.getEvaluatedParent(polygon.original, Game.GAME.model.evaluate());
+            const mousePosition = this.snappedMouseCoords;
+            const point = new Cartesian(Math.round(mousePosition.x - parent.origin.x), Math.round(mousePosition.y - parent.origin.y));
+            if (this.selectedPoint === 0) {
+                polygon.original.points.push(point);
+            } else {
+                polygon.original.points.splice(this.selectedPoint - 1, 0, point);
+            }
+            this.selectedTool = Tool.select;
+            this.refreshModel();
+        }
     }
 }
 
