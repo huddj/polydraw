@@ -825,6 +825,7 @@ class UserInterface {
         this.selectedTool = Tool.select;
     }
     refreshModel() {
+        this.drawCommands.clear();
         const selected = this.selectedObjects[this.selectedObject].original;
         const parented = this.selectedParentShape.original;
         this.selectedObjects = [this.getEvaluatedObject(parented, Game.GAME.model.evaluate())];
@@ -836,7 +837,60 @@ class UserInterface {
     deleteObject() {
         let confirmed = Input.INPUT.keyHandlers.get("shiftB").state;
         confirmed = confirmed || window.confirm("Are you sure you want to delete?");
-        console.log(confirmed);
+        const selectedObject = this.selectedObjects[this.selectedObject];
+        switch (selectedObject.identify()) {
+            case "Shape":
+                const shape = selectedObject;
+                const parent = this.getEvaluatedParent(shape.original, Game.GAME.model.evaluate());
+                if (parent === null) {
+                    console.log("deleteObject no parent ERROR (ROOT)?");
+                }
+                else {
+                    parent.original.shapes.splice(parent.original.shapes.indexOf(shape.original), 1);
+                    this.selectedObjects = [parent];
+                    this.selectObject(0);
+                    this.refreshModel();
+                }
+                break;
+            case "Polygon":
+                const polygon = selectedObject;
+                if (this.selectedPoint === 0) {
+                    const parent = this.getEvaluatedParent(polygon.original, Game.GAME.model.evaluate());
+                    if (parent === null) {
+                        console.log("deleteObject no parent ERROR (ROOT)?");
+                    }
+                    else {
+                        parent.original.polygons.splice(parent.original.polygons.indexOf(polygon.original), 1);
+                        this.selectedObjects = [parent];
+                        this.selectObject(0);
+                        this.refreshModel();
+                    }
+                }
+                else {
+                    polygon.original.points.splice(this.selectedPoint - 1, 1);
+                    this.refreshModel();
+                }
+                break;
+        }
+    }
+    getEvaluatedParent(match, evalled) {
+        for (let i = 0; i < evalled.polygons.length; i++) {
+            if (match === evalled.polygons[i].original) {
+                return evalled;
+            }
+        }
+        for (let i = 0; i < evalled.shapes.length; i++) {
+            if (match === evalled.shapes[i].original) {
+                return evalled;
+            }
+            else {
+                const object = this.getEvaluatedObject(match, evalled.shapes[i]);
+                if (object !== null) {
+                    return object;
+                }
+            }
+        }
+        return null;
     }
 }
 function startDraw() {

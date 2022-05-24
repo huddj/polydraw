@@ -812,6 +812,7 @@ class UserInterface {
         this.selectedTool = Tool.select;
     }
     refreshModel(): void {
+        this.drawCommands.clear();
         const selected = this.selectedObjects[this.selectedObject].original;
         const parented = this.selectedParentShape.original;
         this.selectedObjects = [this.getEvaluatedObject(parented, Game.GAME.model.evaluate())];
@@ -826,11 +827,53 @@ class UserInterface {
         const selectedObject = this.selectedObjects[this.selectedObject];
         switch ((selectedObject as Identified).identify()) {
             case "Shape":
-                
+                const shape = selectedObject as Shape;
+                const parent = this.getEvaluatedParent(shape.original, Game.GAME.model.evaluate()) as Shape;
+                if (parent === null) {
+                    console.log("deleteObject no parent ERROR (ROOT)?");
+                } else {
+                    parent.original.shapes.splice(parent.original.shapes.indexOf(shape.original), 1);
+                    this.selectedObjects = [parent];
+                    this.selectObject(0);
+                    this.refreshModel();
+                }
                 break;
             case "Polygon":
+                const polygon = selectedObject as Polygon;
+                if (this.selectedPoint === 0) {
+                    const parent = this.getEvaluatedParent(polygon.original, Game.GAME.model.evaluate()) as Shape;
+                    if (parent === null) {
+                        console.log("deleteObject no parent ERROR (ROOT)?");
+                    } else {
+                        parent.original.polygons.splice(parent.original.polygons.indexOf(polygon.original), 1);
+                        this.selectedObjects = [parent];
+                        this.selectObject(0);
+                        this.refreshModel();
+                    }
+                } else {
+                    polygon.original.points.splice(this.selectedPoint - 1, 1);
+                    this.refreshModel();
+                }
                 break;
         }
+    }
+    getEvaluatedParent(match: Shape | Polygon, evalled: Shape): Shape | Polygon {
+        for (let i = 0; i < evalled.polygons.length; i++) {
+            if (match === evalled.polygons[i].original) {
+                return evalled;
+            }
+        }
+        for (let i = 0; i < evalled.shapes.length; i++) {
+            if (match === evalled.shapes[i].original) {
+                return evalled;
+            } else {
+                const object = this.getEvaluatedObject(match, evalled.shapes[i]);
+                if (object !== null) {
+                    return object;
+                }
+            }
+        }
+        return null;
     }
 }
 
