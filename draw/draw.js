@@ -345,6 +345,10 @@ class Input {
                 }
             }
         }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("dB", new Button(["d"], (down) => { if (down) {
+            Game.GAME.userInterface.deleteObject();
+        } }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("shiftB", new Button(["shift"], (down) => { }, document.body));
     }
     get realMouseCoords() {
         const camera = Game.GAME.camera;
@@ -813,6 +817,7 @@ class UserInterface {
         const mouseCoords = this.snappedMouseCoords;
         const shapeCoords = new Cartesian(Math.round(mouseCoords.x - this.selectedParentShape.origin.x), Math.round(mouseCoords.y - this.selectedParentShape.origin.y));
         const newShape = new Shape("default", shapeCoords, [], []);
+        newShape.root = false;
         this.selectedParentShape.original.shapes.push(newShape);
         this.selectedObjects = [this.getEvaluatedObject(newShape, Game.GAME.model.evaluate())];
         this.selectObject(0);
@@ -827,6 +832,11 @@ class UserInterface {
         this.selectParentShape();
         this.selectedObjects = [this.getEvaluatedObject(selected, Game.GAME.model.evaluate())];
         this.selectObject(0);
+    }
+    deleteObject() {
+        let confirmed = Input.INPUT.keyHandlers.get("shiftB").state;
+        confirmed = confirmed || window.confirm("Are you sure you want to delete?");
+        console.log(confirmed);
     }
 }
 function startDraw() {
