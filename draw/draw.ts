@@ -356,6 +356,8 @@ class Input { //singleton
                 case Tool.point:
                     Game.GAME.userInterface.createPoint();
                     break;
+                case Tool.move:
+                    Game.GAME.userInterface.moveObject();
             }
         }}, Game.GAME.camera.canvas));
         this.keyHandlers.set("escapeB", new Button(["escape"], (down: boolean) => {if (down) {Game.GAME.camera.canvas.focus();}}, document.body));
@@ -400,6 +402,7 @@ class Input { //singleton
         this.keyHandlers.set("mB", new Button(["m"], (down: boolean) => {if (down) {
             if (Game.GAME.userInterface.selectedTool === Tool.select) {
                 const mouseCoords = Game.GAME.userInterface.snappedMouseCoords;
+                Game.GAME.userInterface.moveStart = mouseCoords;
                 let color;
                 switch ((Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject] as Identified).identify()) {
                     case "Shape":
@@ -410,11 +413,12 @@ class Input { //singleton
                         break;
                 }
                 Game.GAME.userInterface.drawCommands.set("move pointer command", (camera: Camera) => {
-                    drawLine(camera.canvas, camera.realToCanvas(mouseCoords).arr, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, color);
+                    drawLine(camera.canvas, camera.realToCanvas(mouseCoords).arr, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, color, 2);
                 });
                 Game.GAME.userInterface.selectedTool = Tool.move;
             } else if (Game.GAME.userInterface.selectedTool === Tool.move) {
                 Game.GAME.userInterface.drawCommands.delete("move pointer command");
+                Game.GAME.userInterface.moveStart = null;
                 Game.GAME.userInterface.selectedTool = Tool.select;
             }
         }}, Game.GAME.camera.canvas));
@@ -568,6 +572,7 @@ class UserInterface {
     selectedPoint: number = 0;
     selectedTool: Tool = Tool.select;
     mouseSnap: boolean = true;
+    moveStart: Cartesian = null;
     drawCommands: Map<string, (camera: Camera) => void> = new Map<string, (camera: Camera) => void>();
     constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement) {
         this.selectedObjects = [Game.GAME.model.evaluate()];
@@ -671,6 +676,7 @@ class UserInterface {
             switchSelectedInput.value = (idx + 1) + "";
             switchSelectedInput.onchange = () => {
                 me.selectObject(parseInt(switchSelectedInput.value) - 1);
+                Game.GAME.camera.canvas.focus();
             };
             this.selectionDiv.appendChild(switchSelectedInput);
         }
@@ -715,6 +721,7 @@ class UserInterface {
                         shapeChildButton.onmouseleave(null);
                         me.selectedObjects = [s];
                         me.selectObject(0);
+                        Game.GAME.camera.canvas.focus();
                     }
                     this.selectionDiv.appendChild(shapeChildButton);
                 });
@@ -737,6 +744,7 @@ class UserInterface {
                         polygonChildButton.onmouseleave(null);
                         me.selectedObjects = [poly];
                         me.selectObject(0);
+                        Game.GAME.camera.canvas.focus();
                     }
                     this.selectionDiv.appendChild(polygonChildButton);
                 });
@@ -750,6 +758,7 @@ class UserInterface {
                     me.selectedPoint = 0;
                     me.selectedObjects = [polygon];
                     me.selectObject(0);
+                    Game.GAME.camera.canvas.focus();
                 }
                 this.selectionDiv.appendChild(nameButton);
                 this.selectionDiv.appendChild(createTextSpan("color:"));
@@ -791,12 +800,12 @@ class UserInterface {
                         });
                         pointChildButton.style.backgroundColor = polygon.lineOnly ? "purple" : "red";
                         me.selectedPoint = i + 1;
+                        Game.GAME.camera.canvas.focus();
                     }
                     this.selectionDiv.appendChild(pointChildButton);
                 });
                 break;
         }
-
     }
     selectParentShape(): void {
         if ((this.selectedObjects[this.selectedObject] as Identified).identify() === "Shape") {
@@ -898,6 +907,7 @@ class UserInterface {
                     }
                 } else {
                     polygon.original.points.splice(this.selectedPoint - 1, 1);
+                    this.selectedPoint = 0;
                     this.refreshModel();
                 }
                 break;
@@ -932,6 +942,31 @@ class UserInterface {
                 polygon.original.points.push(point);
             } else {
                 polygon.original.points.splice(this.selectedPoint - 1, 0, point);
+            }
+            this.selectedTool = Tool.select;
+            this.refreshModel();
+        }
+    }
+    moveObject(): void {
+        if (this.moveStart !== null) {
+            const selectedObject = this.selectedObjects[this.selectedObject];
+            const mouseCoords = this.snappedMouseCoords;
+            const diff = new Cartesian(Math.round(mouseCoords.x - this.moveStart.x), Math.round(mouseCoords.y - this.moveStart.y));
+            switch ((selectedObject as Identified).identify()) {
+                case "Shape":
+                    const shape = selectedObject as Shape;
+                    shape.original.origin = shape.original.origin.transform(diff);
+                    break;
+                case "Polygon":
+                    const polygon = selectedObject as Polygon;
+                    if (this.selectedPoint === 0) {
+                        polygon.original.points = polygon.original.points.map(point => {
+                            return point.transform(diff);
+                        });
+                    } else {
+                        polygon.original.points[this.selectedPoint - 1] = polygon.original.points[this.selectedPoint - 1].transform(diff);
+                    }
+                    break;
             }
             this.selectedTool = Tool.select;
             this.refreshModel();
