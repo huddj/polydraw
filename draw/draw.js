@@ -366,10 +366,17 @@ class Input {
         this.keyHandlers.set("shiftB", new Button(["shift"], (down) => { }, document.body));
         this.keyHandlers.set("bB", new Button(["b"], (down) => {
             if (down) {
-                const parent = Game.GAME.userInterface.getEvaluatedParent(Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject].original, Game.GAME.model.evaluate());
-                if (parent !== null) {
-                    Game.GAME.userInterface.selectedObjects = [parent];
-                    Game.GAME.userInterface.selectObject(0);
+                const selected = Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject];
+                if (selected.identify() === "Polygon" && Game.GAME.userInterface.selectedPoint !== 0) {
+                    Game.GAME.userInterface.selectedPoint = 0;
+                    Game.GAME.userInterface.refreshModel();
+                }
+                else {
+                    const parent = Game.GAME.userInterface.getEvaluatedParent(selected.original, Game.GAME.model.evaluate());
+                    if (parent !== null) {
+                        Game.GAME.userInterface.selectedObjects = [parent];
+                        Game.GAME.userInterface.selectObject(0);
+                    }
                 }
             }
         }, Game.GAME.camera.canvas));
@@ -857,16 +864,7 @@ class UserInterface {
                 break;
             case "Polygon":
                 const polygon = selectedObject;
-                const nameButton = document.createElement("button");
-                nameButton.appendChild(document.createTextNode(polygon.lineOnly ? "Polyline" : "Polygon"));
-                nameButton.style.color = polygon.lineOnly ? "purple" : "red";
-                nameButton.onclick = () => {
-                    me.selectedPoint = 0;
-                    me.selectedObjects = [polygon];
-                    me.selectObject(0);
-                    Game.GAME.camera.canvas.focus();
-                };
-                this.selectionDiv.appendChild(nameButton);
+                this.selectionDiv.appendChild(createTextSpan("Polygon", polygon.lineOnly ? "purple" : "red"));
                 this.selectionDiv.appendChild(createTextSpan("color:"));
                 const polyColorInput = document.createElement("input");
                 polyColorInput.type = "text";

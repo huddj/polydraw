@@ -389,10 +389,16 @@ class Input { //singleton
         this.keyHandlers.set("dB", new Button(["d"], (down: boolean) => {if (down) {Game.GAME.userInterface.deleteObject();}}, Game.GAME.camera.canvas));
         this.keyHandlers.set("shiftB", new Button(["shift"], (down: boolean) => {}, document.body));
         this.keyHandlers.set("bB", new Button(["b"], (down: boolean) => {if (down) {
-            const parent = Game.GAME.userInterface.getEvaluatedParent(Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject].original, Game.GAME.model.evaluate());
-            if (parent !== null) {
-                Game.GAME.userInterface.selectedObjects = [parent];
-                Game.GAME.userInterface.selectObject(0);
+            const selected = Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject];
+            if ((selected as Identified).identify() === "Polygon" && Game.GAME.userInterface.selectedPoint !== 0) {
+                Game.GAME.userInterface.selectedPoint = 0;
+                Game.GAME.userInterface.refreshModel();
+            } else {
+                const parent = Game.GAME.userInterface.getEvaluatedParent(selected.original, Game.GAME.model.evaluate());
+                if (parent !== null) {
+                    Game.GAME.userInterface.selectedObjects = [parent];
+                    Game.GAME.userInterface.selectObject(0);
+                }
         }}}, Game.GAME.camera.canvas));
         this.keyHandlers.set("cB", new Button(["c"], (down: boolean) => {if (down) {
             if (Game.GAME.userInterface.selectedTool === Tool.select) {
@@ -822,16 +828,7 @@ class UserInterface {
                 break;
             case "Polygon":
                 const polygon = selectedObject as Polygon
-                const nameButton = document.createElement("button");
-                nameButton.appendChild(document.createTextNode(polygon.lineOnly ? "Polyline" : "Polygon"));
-                nameButton.style.color = polygon.lineOnly ? "purple" : "red";
-                nameButton.onclick = () => {
-                    me.selectedPoint = 0;
-                    me.selectedObjects = [polygon];
-                    me.selectObject(0);
-                    Game.GAME.camera.canvas.focus();
-                }
-                this.selectionDiv.appendChild(nameButton);
+                this.selectionDiv.appendChild(createTextSpan("Polygon", polygon.lineOnly ? "purple" : "red"));
                 this.selectionDiv.appendChild(createTextSpan("color:"));
                 const polyColorInput = document.createElement("input");
                 polyColorInput.type = "text";
