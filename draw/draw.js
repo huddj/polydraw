@@ -35,10 +35,13 @@ function drawPolygon(canvas, points, fill = "black") {
     }
     ctx.fill();
 }
-function drawPolyline(canvas, points, stroke = "black") {
+function drawPolyline(canvas, points, stroke = "black", width = 1) {
     const ctx = canvas.getContext("2d");
     if (stroke) {
         ctx.strokeStyle = stroke;
+    }
+    if (width) {
+        ctx.lineWidth = width;
     }
     ctx.beginPath();
     ctx.moveTo(...points[0]);
@@ -213,7 +216,7 @@ class Shape {
         polygons.forEach(poly => {
             const points = poly.points.map(p => [p.x, p.y]);
             if (poly.lineOnly) {
-                drawPolyline(canvas, points, poly.color);
+                drawPolyline(canvas, points, poly.color, 2);
             }
             else {
                 drawPolygon(canvas, points, poly.color);
@@ -327,6 +330,9 @@ class Input {
                     case Tool.poly:
                         Game.GAME.userInterface.polyPoint();
                         break;
+                    case Tool.line:
+                        Game.GAME.userInterface.polyPoint();
+                        break;
                 }
             }
         }, Game.GAME.camera.canvas));
@@ -427,15 +433,48 @@ class Input {
                 }
                 else if (Game.GAME.userInterface.selectedTool === Tool.poly) {
                     Game.GAME.userInterface.drawCommands.delete("poly draw command");
-                    const parent = Game.GAME.userInterface.selectedParentShape;
-                    const points = Game.GAME.userInterface.temporaryPolyPoints.map(point => new Cartesian(Math.round(point.x - parent.origin.x), Math.round(point.y - parent.origin.y)));
-                    const polygon = new Polygon(points, "black", 0);
-                    parent.original.polygons.push(polygon);
+                    if (2 < Game.GAME.userInterface.temporaryPolyPoints.length) {
+                        const parent = Game.GAME.userInterface.selectedParentShape;
+                        const points = Game.GAME.userInterface.temporaryPolyPoints.map(point => new Cartesian(Math.round(point.x - parent.origin.x), Math.round(point.y - parent.origin.y)));
+                        const polygon = new Polygon(points, "black", 0);
+                        parent.original.polygons.push(polygon);
+                        const evaluated = Game.GAME.userInterface.getEvaluatedObject(polygon, Game.GAME.model.evaluate());
+                        Game.GAME.userInterface.selectedObjects = [evaluated];
+                        Game.GAME.userInterface.selectObject(0);
+                        Game.GAME.userInterface.refreshModel();
+                    }
                     Game.GAME.userInterface.temporaryPolyPoints = [];
-                    const evaluated = Game.GAME.userInterface.getEvaluatedObject(polygon, Game.GAME.model.evaluate());
-                    Game.GAME.userInterface.selectedObjects = [evaluated];
-                    Game.GAME.userInterface.selectObject(0);
-                    Game.GAME.userInterface.refreshModel();
+                    Game.GAME.userInterface.selectedTool = Tool.select;
+                }
+            }
+        }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("lB", new Button(["l"], (down) => {
+            if (down) {
+                if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                    Game.GAME.userInterface.drawCommands.set("line draw command", (camera) => {
+                        drawArc(camera.canvas, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, 10, 0, 2 * Math.PI, "purple", 2);
+                        if (1 < Game.GAME.userInterface.temporaryPolyPoints.length) {
+                            drawPolyline(camera.canvas, [...Game.GAME.userInterface.temporaryPolyPoints, Game.GAME.userInterface.snappedMouseCoords].map(p => camera.realToCanvas(p).arr), "purple", 2);
+                        }
+                        Game.GAME.userInterface.temporaryPolyPoints.forEach(point => {
+                            drawArc(camera.canvas, camera.realToCanvas(point).arr, 5, 0, 2 * Math.PI, "orange", 2);
+                        });
+                    });
+                    Game.GAME.userInterface.selectedTool = Tool.line;
+                }
+                else if (Game.GAME.userInterface.selectedTool === Tool.line) {
+                    Game.GAME.userInterface.drawCommands.delete("line draw command");
+                    if (1 < Game.GAME.userInterface.temporaryPolyPoints.length) {
+                        const parent = Game.GAME.userInterface.selectedParentShape;
+                        const points = Game.GAME.userInterface.temporaryPolyPoints.map(point => new Cartesian(Math.round(point.x - parent.origin.x), Math.round(point.y - parent.origin.y)));
+                        const polygon = new Polygon(points, "black", 0, true);
+                        parent.original.polygons.push(polygon);
+                        const evaluated = Game.GAME.userInterface.getEvaluatedObject(polygon, Game.GAME.model.evaluate());
+                        Game.GAME.userInterface.selectedObjects = [evaluated];
+                        Game.GAME.userInterface.selectObject(0);
+                        Game.GAME.userInterface.refreshModel();
+                    }
+                    Game.GAME.userInterface.temporaryPolyPoints = [];
                     Game.GAME.userInterface.selectedTool = Tool.select;
                 }
             }
@@ -591,9 +630,9 @@ class Camera {
         const s = Game.GAME.model;
         const polygons = Shape.ALLPOLYGONS(s.evaluate()).sort((a, b) => a.layer - b.layer);
         polygons.forEach(poly => {
-            const points = poly.points.map((p) => { const cP = camera.realToCanvas(p); return [cP.x, cP.y]; });
+            const points = poly.points.map(p => camera.realToCanvas(p).arr);
             if (poly.lineOnly) {
-                drawPolyline(this.canvas, points, poly.color);
+                drawPolyline(this.canvas, points, poly.color, 2);
             }
             else {
                 drawPolygon(this.canvas, points, poly.color);
@@ -673,7 +712,7 @@ class UserInterface {
                 case "Polygon":
                     const polygon = selectedObject;
                     const points = polygon.points.map(p => camera.realToCanvas(p).arr);
-                    drawPolyline(camera.canvas, [...points, points[0]], polygon.lineOnly ? "purple" : "red");
+                    drawPolyline(camera.canvas, polygon.lineOnly ? points : [...points, points[0]], polygon.lineOnly ? "purple" : "red", 2);
                     if (this.selectedPoint !== 0 && this.selectedPoint <= polygon.points.length) {
                         drawArc(camera.canvas, camera.realToCanvas(polygon.points[this.selectedPoint - 1]).arr, 5, 0, 2 * Math.PI, polygon.lineOnly ? "purple" : "red", 2);
                     }
@@ -791,7 +830,7 @@ class UserInterface {
                     polygonChildButton.onmouseenter = () => {
                         me.drawCommands.set(drawCommandName, (camera) => {
                             const points = poly.points.map(p => camera.realToCanvas(p).arr);
-                            drawPolyline(camera.canvas, [...points, points[0]], poly.lineOnly ? "purple" : "red");
+                            drawPolyline(camera.canvas, [...points, points[0]], poly.lineOnly ? "purple" : "red", 2);
                         });
                     };
                     polygonChildButton.onmouseleave = () => {
