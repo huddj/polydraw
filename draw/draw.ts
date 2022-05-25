@@ -358,6 +358,10 @@ class Input { //singleton
                     break;
                 case Tool.move:
                     Game.GAME.userInterface.moveObject();
+                    break;
+                case Tool.poly:
+                    Game.GAME.userInterface.polyPoint();
+                    break;
             }
         }}, Game.GAME.camera.canvas));
         this.keyHandlers.set("escapeB", new Button(["escape"], (down: boolean) => {if (down) {Game.GAME.camera.canvas.focus();}}, document.body));
@@ -422,6 +426,31 @@ class Input { //singleton
                 Game.GAME.userInterface.selectedTool = Tool.select;
             }
         }}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("pB", new Button(["p"], (down: boolean) => {if (down) {
+            if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                Game.GAME.userInterface.drawCommands.set("poly draw command", (camera: Camera) => {
+                    drawArc(camera.canvas, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, 10, 0, 2 * Math.PI, "red", 2);
+                    if (1 < Game.GAME.userInterface.temporaryPolyPoints.length) {
+                        drawPolygon(camera.canvas, [...Game.GAME.userInterface.temporaryPolyPoints, Game.GAME.userInterface.snappedMouseCoords].map(p => camera.realToCanvas(p).arr), "crimson");
+                    }
+                    Game.GAME.userInterface.temporaryPolyPoints.forEach(point => {
+                        drawArc(camera.canvas, camera.realToCanvas(point).arr, 5, 0, 2 * Math.PI, "orange", 2);
+                    });
+                });
+                Game.GAME.userInterface.selectedTool = Tool.poly;
+            } else if (Game.GAME.userInterface.selectedTool === Tool.poly) {
+                Game.GAME.userInterface.drawCommands.delete("poly draw command");
+                const parent = Game.GAME.userInterface.selectedParentShape;
+                const points = Game.GAME.userInterface.temporaryPolyPoints.map(point => new Cartesian(Math.round(point.x - parent.origin.x), Math.round(point.y - parent.origin.y)));
+                const polygon = new Polygon(points, "black", 0);
+                parent.original.polygons.push(polygon);
+                Game.GAME.userInterface.temporaryPolyPoints = [];
+                const evaluated = Game.GAME.userInterface.getEvaluatedObject(polygon, Game.GAME.model.evaluate());
+                Game.GAME.userInterface.selectedObjects = [evaluated];
+                Game.GAME.userInterface.selectObject(0);
+                Game.GAME.userInterface.refreshModel();
+                Game.GAME.userInterface.selectedTool = Tool.select;
+        }}}, Game.GAME.camera.canvas));
     }
 }
 class Game { //singleton
@@ -561,7 +590,7 @@ enum Tool {
     delete, //done
     shape, //done
     point, //done
-    poly, 
+    poly,
     line
 }
 class UserInterface {
@@ -573,6 +602,7 @@ class UserInterface {
     selectedTool: Tool = Tool.select;
     mouseSnap: boolean = true;
     moveStart: Cartesian = null;
+    temporaryPolyPoints: Cartesian[] = [];
     drawCommands: Map<string, (camera: Camera) => void> = new Map<string, (camera: Camera) => void>();
     constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement) {
         this.selectedObjects = [Game.GAME.model.evaluate()];
@@ -891,7 +921,6 @@ class UserInterface {
                     parent.original.shapes.splice(parent.original.shapes.indexOf(shape.original), 1);
                     this.selectedObjects = [parent];
                     this.selectObject(0);
-                    this.refreshModel();
                 }
                 break;
             case "Polygon":
@@ -904,15 +933,14 @@ class UserInterface {
                         parent.original.polygons.splice(parent.original.polygons.indexOf(polygon.original), 1);
                         this.selectedObjects = [parent];
                         this.selectObject(0);
-                        this.refreshModel();
                     }
                 } else {
                     polygon.original.points.splice(this.selectedPoint - 1, 1);
                     this.selectedPoint = 0;
-                    this.refreshModel();
                 }
                 break;
         }
+        this.refreshModel()
     }
     getEvaluatedParent(match: Shape | Polygon, evalled: Shape): Shape {
         for (let i = 0; i < evalled.polygons.length; i++) {
@@ -961,17 +989,18 @@ class UserInterface {
                 case "Polygon":
                     const polygon = selectedObject as Polygon;
                     if (this.selectedPoint === 0) {
-                        polygon.original.points = polygon.original.points.map(point => {
-                            return point.transform(diff);
-                        });
+                        polygon.original.points = polygon.original.points.map(point => point.transform(diff));
                     } else {
                         polygon.original.points[this.selectedPoint - 1] = polygon.original.points[this.selectedPoint - 1].transform(diff);
                     }
                     break;
             }
-            this.selectedTool = Tool.select;
             this.refreshModel();
         }
+        this.selectedTool = Tool.select;
+    }
+    polyPoint(): void {
+        this.temporaryPolyPoints.push(this.snappedMouseCoords);
     }
 }
 
