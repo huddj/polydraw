@@ -379,6 +379,30 @@ class Input {
                 }
             }
         }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("mB", new Button(["m"], (down) => {
+            if (down) {
+                if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                    const mouseCoords = Game.GAME.userInterface.snappedMouseCoords;
+                    let color;
+                    switch (Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject].identify()) {
+                        case "Shape":
+                            color = "green";
+                            break;
+                        case "Polygon":
+                            color = (Game.GAME.userInterface.selectedPoint === 0) ? (Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject].lineOnly ? "purple" : "red") : "orange";
+                            break;
+                    }
+                    Game.GAME.userInterface.drawCommands.set("move pointer command", (camera) => {
+                        drawLine(camera.canvas, camera.realToCanvas(mouseCoords).arr, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, color);
+                    });
+                    Game.GAME.userInterface.selectedTool = Tool.move;
+                }
+                else if (Game.GAME.userInterface.selectedTool === Tool.move) {
+                    Game.GAME.userInterface.drawCommands.delete("move pointer command");
+                    Game.GAME.userInterface.selectedTool = Tool.select;
+                }
+            }
+        }, Game.GAME.camera.canvas));
     }
     get realMouseCoords() {
         const camera = Game.GAME.camera;
@@ -556,6 +580,7 @@ var Tool;
     Tool[Tool["shape"] = 3] = "shape";
     Tool[Tool["point"] = 4] = "point";
     Tool[Tool["poly"] = 5] = "poly";
+    Tool[Tool["line"] = 6] = "line";
 })(Tool || (Tool = {}));
 class UserInterface {
     constructor(textArea, parentShapeDiv, selectionDiv) {

@@ -396,7 +396,27 @@ class Input { //singleton
                 Game.GAME.userInterface.drawCommands.delete("point create pointer command");
                 Game.GAME.userInterface.selectedTool = Tool.select;
             }
-
+        }}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("mB", new Button(["m"], (down: boolean) => {if (down) {
+            if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                const mouseCoords = Game.GAME.userInterface.snappedMouseCoords;
+                let color;
+                switch ((Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject] as Identified).identify()) {
+                    case "Shape":
+                        color = "green";
+                        break;
+                    case "Polygon":
+                        color = (Game.GAME.userInterface.selectedPoint === 0) ? ((Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject] as Polygon).lineOnly ? "purple" : "red") : "orange";
+                        break;
+                }
+                Game.GAME.userInterface.drawCommands.set("move pointer command", (camera: Camera) => {
+                    drawLine(camera.canvas, camera.realToCanvas(mouseCoords).arr, camera.realToCanvas(Game.GAME.userInterface.snappedMouseCoords).arr, color);
+                });
+                Game.GAME.userInterface.selectedTool = Tool.move;
+            } else if (Game.GAME.userInterface.selectedTool === Tool.move) {
+                Game.GAME.userInterface.drawCommands.delete("move pointer command");
+                Game.GAME.userInterface.selectedTool = Tool.select;
+            }
         }}, Game.GAME.camera.canvas));
     }
 }
