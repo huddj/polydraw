@@ -697,6 +697,7 @@ class UserInterface {
                 return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
             };
             Game.GAME.model = convertObjToShape(JSON.parse(userInterface.textArea.value));
+            Input.INPUT.keyHandlers.get("rB").change("r", true, Game.GAME.camera.canvas);
         };
     }
     get snappedMouseCoords() {
