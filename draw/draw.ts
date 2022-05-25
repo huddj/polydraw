@@ -872,6 +872,9 @@ class UserInterface {
                         me.selectedPoint = i + 1;
                         Game.GAME.camera.canvas.focus();
                     }
+                    if (i === this.selectedPoint - 1) {
+                        pointChildButton.style.backgroundColor = polygon.lineOnly ? "purple" : "red";
+                    }
                     this.selectionDiv.appendChild(pointChildButton);
                 });
                 break;
