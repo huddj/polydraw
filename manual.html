@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Polydraw Manual</title>
+<style>
+</style>
+<script>
+function init() {
+  const loc = window.location.href;
+  const HTMLvalidLinkStr = 'http://validator.w3.org/check?uri=' + loc;
+  const CSSvalidLinkStr = 'http://jigsaw.w3.org/css-validator/validator?uri=' +
+                        loc + '?profile=css3';
+  document.getElementById("vLink1").setAttribute("href", HTMLvalidLinkStr);
+  document.getElementById("vLink2").setAttribute("href", CSSvalidLinkStr);
+}
+window.onload = init;
+</script>
+</head>
+<body>
+<h1>Polydraw</h1>
+
+<p>Polydraw is a polygon and line based drawing tool in a Cartesian coordinate system.</p>
+
+<h4>Shapes:</h4>
+<p>All polygons and lines are organized by the shape system. Shapes are invisible points in space that polygons or other shapes are located in reference to. The 'root' of every drawing is a shape (that should be) located at (0, 0).</p>
+
+<h4>Polygons:</h4>
+<p>Polygons are drawn in reference to a shape. When that shape's relative coordinates change, all the polygons that are 'children' of that shape will move accordingly.</p>
+
+<h4>Layers:</h4>
+<p>Higher layers are displayed above lower layers.</p>
+
+<h4>Colors:</h4>
+<ul>
+<li>Green: Shape selection</li>
+<li>Blue: Current active parent shape</li>
+<li>Red: Polygon selection and creation | polygon point creation and selection</li>
+<li>Purple: Polyline selection and creation | polyline point creation and selection</li>
+<li>Orange: Point highlighting</li>
+</ul>
+
+<h4>Keys:</h4>
+<ul>
+<li>A: "Assign" - If a shape is selected, set it as the current active parent</li>
+<li>B: "Back" - Select parent of currently selected shape; if a point is selected, select the polygon/polyline the points belongs to</li>
+<li>C: "Create" - If a polygon/polyline is selected, add a point to the end; if a point is selected add a point before it</li>
+<li>D: "Delete" - Delete currently selected shape/polygon/polyline/point</li>
+<li>L: "Line" - Enter polyline creation tool; confirm line after clicking points (creates line relative to current active parent)</li>
+<li>M: "Move" - Move shape/polygon/polyline/point</li>
+<li>O: "Outline" - Create a polyline that outlines the current shape and select it</li>
+<li>P: "Polygon" - Enter polygon creation tool; confirm polygon after clicking points (creates polygon relative to current active parent)</li>
+<li>R: "Root" - Select root and set it as current active parent</li>
+<li>S: "Shape" - Create shape (relative to current active parent)</li>
+</ul>
+<footer>
+<a id="vLink1"><strong> HTML </strong> Valid! </a> |
+<a id="vLink2"><strong> CSS </strong> Valid! </a>
+</footer>
+</body>
+</html>
