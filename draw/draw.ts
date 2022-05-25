@@ -661,6 +661,7 @@ class UserInterface {
                 return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
             }
             Game.GAME.model = convertObjToShape(JSON.parse(userInterface.textArea.value));
+            userInterface.refreshModel();
         }
     }
     get snappedMouseCoords(): Cartesian {
