@@ -516,7 +516,9 @@ class Game { //singleton
         Game.GAME.userInterface = new UserInterface(
             document.getElementById("modelJSON") as HTMLTextAreaElement,
             document.getElementById("parentShape") as HTMLDivElement,
-            document.getElementById("selection") as HTMLDivElement
+            document.getElementById("selection") as HTMLDivElement,
+            document.getElementById("exportButton") as HTMLButtonElement,
+            document.getElementById("importButton") as HTMLButtonElement
         );
     }
     static TIME = 0;
@@ -526,26 +528,7 @@ class Game { //singleton
     time: DOMHighResTimeStamp = performance.now();
     userInterface: UserInterface;
     constructor(public camera: Camera) {
-        this.model = new Shape(
-            "hull", [0, 0],
-            [
-                new Polygon([[30, 5], [25, 10], [5, 15], [-20, 15], [-20, 10], [-15, 5], [-15, -5], [-20, -10], [-20, -15], [5, -15], [25, -10], [30, -5]], "DarkGrey", 0),
-                new Polygon([[20, 5], [10, 10], [5, 5], [5, -5], [10, -10], [20, -5]], "CornflowerBlue", 1),
-                new Polygon([[20, 5], [10, 10], [5, 5], [5, -5], [10, -10], [20, -5], [20, 5]], "DarkBlue", 1, true),
-                new Polygon([[5, 0], [-5, 5], [-15, 0], [-5, -5]], "DarkRed", 1),
-                new Polygon([[-10, 5], [-10, 20], [-30, 15], [-30, 10]], "DimGrey", 1),
-                new Polygon([[-10, -5], [-10, -20], [-30, -15], [-30, -10]], "DimGrey", 1),
-                new Polygon([[5, 10], [5, 15], [0, 20], [-10, 20], [-20, 15], [-20, 10], [-10, 5], [0, 5]], "Grey", 2),
-                new Polygon([[5, -10], [5, -15], [0, -20], [-10, -20], [-20, -15], [-20, -10], [-10, -5], [0, -5]], "Grey", 2),
-                new Polygon([[15, 10], [0, 25], [-5, 25], [-10, 20], [-10, -20], [-5, -25], [0, -25], [15, -10]], "DarkRed", -1),
-                new Polygon([[20, 15], [20, 20], [0, 20], [0, 15]], "DimGrey", -2),
-                new Polygon([[20, -15], [20, -20], [0, -20], [0, -15]], "DimGrey", -2)
-            ],
-            [
-                new Shape("right wing", [-5, 15], [new Polygon([[5, 0], [5, 40], [-5, 35], [-5, 20], [-10, 0], [0, -5]], "DarkGrey", 0)], []),
-                new Shape("left wing", [-5, -15], [new Polygon([[5, 0], [5, -40], [-5, -35], [-5, -20], [-10, 0], [0, 5]], "DarkGrey", 0)], [])
-            ]
-        );
+        this.model = new Shape("default", [0, 0], [], []);
     }
 }
 class Camera {
@@ -656,25 +639,29 @@ class UserInterface {
     moveStart: Cartesian = null;
     temporaryPolyPoints: Cartesian[] = [];
     drawCommands: Map<string, (camera: Camera) => void> = new Map<string, (camera: Camera) => void>();
-    constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement) {
+    constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement, exportButton: HTMLButtonElement, importButton: HTMLButtonElement) {
         this.selectedObjects = [Game.GAME.model.evaluate()];
         this.selectObject(0);
         this.selectParentShape();
+        importButton.onclick = this.fromJSON(this);
+        exportButton.onclick = this.toJSON(this);
     }
-    toJSON() {
-        this.textArea.value = JSON.stringify(Game.GAME.model);
+    toJSON(userInterface: UserInterface): () => void {
+        return (): void => {userInterface.textArea.value = JSON.stringify(Game.GAME.model);};
     }
-    fromJSON() {
-        let convertObjToShape: (obj: Object) => Shape;
-        convertObjToShape = (obj: Object): Shape => {
-            const basic = obj as Shape;
-            const polygons = basic.polygons.map(p => {
-                const poly = p as Polygon;
-                return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
-            });
-            return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
+    fromJSON(userInterface: UserInterface): () => void {
+        return (): void => {
+            let convertObjToShape: (obj: Object) => Shape;
+            convertObjToShape = (obj: Object): Shape => {
+                const basic = obj as Shape;
+                const polygons = basic.polygons.map(p => {
+                    const poly = p as Polygon;
+                    return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
+                });
+                return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
+            }
+            Game.GAME.model = convertObjToShape(JSON.parse(userInterface.textArea.value));
         }
-        Game.GAME.model = convertObjToShape(JSON.parse(this.textArea.value));
     }
     get snappedMouseCoords(): Cartesian {
         const gridSize = this.gridSize;

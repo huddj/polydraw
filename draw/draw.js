@@ -550,22 +550,7 @@ class Game {
         this.camera = camera;
         this.playingInterval = false;
         this.time = performance.now();
-        this.model = new Shape("hull", [0, 0], [
-            new Polygon([[30, 5], [25, 10], [5, 15], [-20, 15], [-20, 10], [-15, 5], [-15, -5], [-20, -10], [-20, -15], [5, -15], [25, -10], [30, -5]], "DarkGrey", 0),
-            new Polygon([[20, 5], [10, 10], [5, 5], [5, -5], [10, -10], [20, -5]], "CornflowerBlue", 1),
-            new Polygon([[20, 5], [10, 10], [5, 5], [5, -5], [10, -10], [20, -5], [20, 5]], "DarkBlue", 1, true),
-            new Polygon([[5, 0], [-5, 5], [-15, 0], [-5, -5]], "DarkRed", 1),
-            new Polygon([[-10, 5], [-10, 20], [-30, 15], [-30, 10]], "DimGrey", 1),
-            new Polygon([[-10, -5], [-10, -20], [-30, -15], [-30, -10]], "DimGrey", 1),
-            new Polygon([[5, 10], [5, 15], [0, 20], [-10, 20], [-20, 15], [-20, 10], [-10, 5], [0, 5]], "Grey", 2),
-            new Polygon([[5, -10], [5, -15], [0, -20], [-10, -20], [-20, -15], [-20, -10], [-10, -5], [0, -5]], "Grey", 2),
-            new Polygon([[15, 10], [0, 25], [-5, 25], [-10, 20], [-10, -20], [-5, -25], [0, -25], [15, -10]], "DarkRed", -1),
-            new Polygon([[20, 15], [20, 20], [0, 20], [0, 15]], "DimGrey", -2),
-            new Polygon([[20, -15], [20, -20], [0, -20], [0, -15]], "DimGrey", -2)
-        ], [
-            new Shape("right wing", [-5, 15], [new Polygon([[5, 0], [5, 40], [-5, 35], [-5, 20], [-10, 0], [0, -5]], "DarkGrey", 0)], []),
-            new Shape("left wing", [-5, -15], [new Polygon([[5, 0], [5, -40], [-5, -35], [-5, -20], [-10, 0], [0, 5]], "DarkGrey", 0)], [])
-        ]);
+        this.model = new Shape("default", [0, 0], [], []);
     }
 }
 Game.SETUP = () => {
@@ -574,7 +559,7 @@ Game.SETUP = () => {
     const camera = new Camera(canvas, new Cartesian(0, 0), 500);
     camera.height = 200;
     Game.GAME = new Game(camera);
-    Game.GAME.userInterface = new UserInterface(document.getElementById("modelJSON"), document.getElementById("parentShape"), document.getElementById("selection"));
+    Game.GAME.userInterface = new UserInterface(document.getElementById("modelJSON"), document.getElementById("parentShape"), document.getElementById("selection"), document.getElementById("exportButton"), document.getElementById("importButton"));
 };
 Game.TIME = 0;
 class Camera {
@@ -679,7 +664,7 @@ var Tool;
     Tool[Tool["line"] = 6] = "line";
 })(Tool || (Tool = {}));
 class UserInterface {
-    constructor(textArea, parentShapeDiv, selectionDiv) {
+    constructor(textArea, parentShapeDiv, selectionDiv, exportButton, importButton) {
         this.textArea = textArea;
         this.parentShapeDiv = parentShapeDiv;
         this.selectionDiv = selectionDiv;
@@ -694,21 +679,25 @@ class UserInterface {
         this.selectedObjects = [Game.GAME.model.evaluate()];
         this.selectObject(0);
         this.selectParentShape();
+        importButton.onclick = this.fromJSON(this);
+        exportButton.onclick = this.toJSON(this);
     }
-    toJSON() {
-        this.textArea.value = JSON.stringify(Game.GAME.model);
+    toJSON(userInterface) {
+        return () => { userInterface.textArea.value = JSON.stringify(Game.GAME.model); };
     }
-    fromJSON() {
-        let convertObjToShape;
-        convertObjToShape = (obj) => {
-            const basic = obj;
-            const polygons = basic.polygons.map(p => {
-                const poly = p;
-                return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
-            });
-            return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
+    fromJSON(userInterface) {
+        return () => {
+            let convertObjToShape;
+            convertObjToShape = (obj) => {
+                const basic = obj;
+                const polygons = basic.polygons.map(p => {
+                    const poly = p;
+                    return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
+                });
+                return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
+            };
+            Game.GAME.model = convertObjToShape(JSON.parse(userInterface.textArea.value));
         };
-        Game.GAME.model = convertObjToShape(JSON.parse(this.textArea.value));
     }
     get snappedMouseCoords() {
         const gridSize = this.gridSize;
