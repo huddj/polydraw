@@ -486,6 +486,23 @@ class Input { //singleton
                 Game.GAME.userInterface.temporaryPolyPoints = [];
                 Game.GAME.userInterface.selectedTool = Tool.select;
         }}}, Game.GAME.camera.canvas));
+        this.keyHandlers.set("oB", new Button(["o"], (down: boolean) => {if (down) {
+            if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                const selected = Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject];
+                if ((selected as Identified).identify() === "Polygon") {
+                    const polygon = selected as Polygon;
+                    if (!polygon.lineOnly) {
+                        const parent = Game.GAME.userInterface.getEvaluatedParent(polygon.original, Game.GAME.model.evaluate());
+                        const points = polygon.points.map(point => new Cartesian(Math.round(point.x - parent.origin.x), Math.round(point.y - parent.origin.y)));
+                        const outline = new Polygon([...points, points[0]], "black", polygon.layer + 1, true);
+                        parent.original.polygons.push(outline);
+                        const evaluated = Game.GAME.userInterface.getEvaluatedObject(outline, Game.GAME.model.evaluate());
+                        Game.GAME.userInterface.selectedObjects = [evaluated];
+                        Game.GAME.userInterface.selectObject(0);
+                        Game.GAME.userInterface.refreshModel();
+                    }
+                }
+        }}}, Game.GAME.camera.canvas));
     }
 }
 class Game { //singleton
