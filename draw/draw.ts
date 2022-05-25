@@ -557,11 +557,11 @@ class Camera {
 }
 enum Tool {
     select, //done
-    move,
+    move, //done
     delete, //done
     shape, //done
     point, //done
-    poly,
+    poly, 
     line
 }
 class UserInterface {
@@ -662,6 +662,7 @@ class UserInterface {
         if (0 < idx) {
             this.selectedPoint = 0;
         }
+        this.drawCommands.clear();
         const me = this;
         Array.from(this.selectionDiv.children).forEach(element => {
             element.remove();
