@@ -524,7 +524,8 @@ class Game { //singleton
             document.getElementById("parentShape") as HTMLDivElement,
             document.getElementById("selection") as HTMLDivElement,
             document.getElementById("exportButton") as HTMLButtonElement,
-            document.getElementById("importButton") as HTMLButtonElement
+            document.getElementById("importButton") as HTMLButtonElement,
+            document.getElementById("exportPolycodeButton") as HTMLButtonElement,
         );
     }
     static TIME = 0;
@@ -645,27 +646,29 @@ class UserInterface {
     moveStart: Cartesian = null;
     temporaryPolyPoints: Cartesian[] = [];
     drawCommands: Map<string, (camera: Camera) => void> = new Map<string, (camera: Camera) => void>();
-    constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement, exportButton: HTMLButtonElement, importButton: HTMLButtonElement) {
+    constructor(public textArea: HTMLTextAreaElement, public parentShapeDiv: HTMLDivElement, public selectionDiv: HTMLDivElement, exportButton: HTMLButtonElement, importButton: HTMLButtonElement, public exportPolycodeButton: HTMLButtonElement) {
         this.selectedObjects = [Game.GAME.model.evaluate()];
         this.selectObject(0);
         this.selectParentShape();
         importButton.onclick = this.fromJSON(this);
         exportButton.onclick = this.toJSON(this);
+        exportPolycodeButton.onclick = this.toPolyCode(this);
+
     }
     toJSON(userInterface: UserInterface): () => void {
         return (): void => {userInterface.textArea.value = JSON.stringify(Game.GAME.model);};
     }
     fromJSON(userInterface: UserInterface): () => void {
+        let convertObjToShape: (obj: Object) => Shape;
+        convertObjToShape = (obj: Object): Shape => {
+            const basic = obj as Shape;
+            const polygons = basic.polygons.map(p => {
+                const poly = p as Polygon;
+                return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
+            });
+            return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
+        }
         return (): void => {
-            let convertObjToShape: (obj: Object) => Shape;
-            convertObjToShape = (obj: Object): Shape => {
-                const basic = obj as Shape;
-                const polygons = basic.polygons.map(p => {
-                    const poly = p as Polygon;
-                    return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
-                });
-                return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
-            }
             Game.GAME.model = convertObjToShape(JSON.parse(userInterface.textArea.value));
             Input.INPUT.keyHandlers.get("rB").change("r", true, Game.GAME.camera.canvas);
         }
@@ -1041,6 +1044,35 @@ class UserInterface {
     }
     polyPoint(): void {
         this.temporaryPolyPoints.push(this.snappedMouseCoords);
+    }
+    toPolyCode(userInterface: UserInterface): () => void {
+        const polyStr = (poly: Polygon): string => {
+            let result = "new Polygon([";
+            poly.points.forEach((point, i) => {
+                if (0 < i) {
+                    result += ", ";
+                }
+                result += "[" + point.arr.toString() + "]";
+            });
+            result += "], \"" + poly.color + "\", " + poly.layer + ", " + poly.lineOnly + ")";
+            return result;
+        };
+        let shapeStr: (shape: Shape) => string;
+        shapeStr = (shape: Shape): string => {
+            let result = "new Shape(\"" + shape.name + "\", [" + shape.origin.arr.toString() + "], [\n";
+            shape.polygons.forEach((poly, i) => {
+                result += (i === 0 ? "" : ", \n") + polyStr(poly);
+            });
+            result += "\n], [\n";
+            shape.shapes.forEach((shape, i) => {
+                result += (i === 0 ? "" : ", \n") + shapeStr(shape);
+            });
+            result += "\n])"
+            return result;
+        };
+        return () => {
+            userInterface.textArea.value = shapeStr(Game.GAME.model);
+        }
     }
 }
 

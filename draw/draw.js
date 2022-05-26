@@ -566,7 +566,7 @@ Game.SETUP = () => {
     const camera = new Camera(canvas, new Cartesian(0, 0), 500);
     camera.height = 200;
     Game.GAME = new Game(camera);
-    Game.GAME.userInterface = new UserInterface(document.getElementById("modelJSON"), document.getElementById("parentShape"), document.getElementById("selection"), document.getElementById("exportButton"), document.getElementById("importButton"));
+    Game.GAME.userInterface = new UserInterface(document.getElementById("modelJSON"), document.getElementById("parentShape"), document.getElementById("selection"), document.getElementById("exportButton"), document.getElementById("importButton"), document.getElementById("exportPolycodeButton"));
 };
 Game.TIME = 0;
 class Camera {
@@ -671,10 +671,11 @@ var Tool;
     Tool[Tool["line"] = 6] = "line";
 })(Tool || (Tool = {}));
 class UserInterface {
-    constructor(textArea, parentShapeDiv, selectionDiv, exportButton, importButton) {
+    constructor(textArea, parentShapeDiv, selectionDiv, exportButton, importButton, exportPolycodeButton) {
         this.textArea = textArea;
         this.parentShapeDiv = parentShapeDiv;
         this.selectionDiv = selectionDiv;
+        this.exportPolycodeButton = exportPolycodeButton;
         this.gridSize = 5;
         this.selectedObject = 0;
         this.selectedPoint = 0;
@@ -688,21 +689,22 @@ class UserInterface {
         this.selectParentShape();
         importButton.onclick = this.fromJSON(this);
         exportButton.onclick = this.toJSON(this);
+        exportPolycodeButton.onclick = this.toPolyCode(this);
     }
     toJSON(userInterface) {
         return () => { userInterface.textArea.value = JSON.stringify(Game.GAME.model); };
     }
     fromJSON(userInterface) {
+        let convertObjToShape;
+        convertObjToShape = (obj) => {
+            const basic = obj;
+            const polygons = basic.polygons.map(p => {
+                const poly = p;
+                return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
+            });
+            return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
+        };
         return () => {
-            let convertObjToShape;
-            convertObjToShape = (obj) => {
-                const basic = obj;
-                const polygons = basic.polygons.map(p => {
-                    const poly = p;
-                    return new Polygon(poly.points, poly.color, poly.layer, poly.lineOnly);
-                });
-                return new Shape(basic.name, basic.origin, polygons, basic.shapes.map(s => convertObjToShape(s)));
-            };
             Game.GAME.model = convertObjToShape(JSON.parse(userInterface.textArea.value));
             Input.INPUT.keyHandlers.get("rB").change("r", true, Game.GAME.camera.canvas);
         };
@@ -1084,6 +1086,35 @@ class UserInterface {
     }
     polyPoint() {
         this.temporaryPolyPoints.push(this.snappedMouseCoords);
+    }
+    toPolyCode(userInterface) {
+        const polyStr = (poly) => {
+            let result = "new Polygon([";
+            poly.points.forEach((point, i) => {
+                if (0 < i) {
+                    result += ", ";
+                }
+                result += "[" + point.arr.toString() + "]";
+            });
+            result += "], \"" + poly.color + "\", " + poly.layer + ", " + poly.lineOnly + ")";
+            return result;
+        };
+        let shapeStr;
+        shapeStr = (shape) => {
+            let result = "new Shape(\"" + shape.name + "\", [" + shape.origin.arr.toString() + "], [\n";
+            shape.polygons.forEach((poly, i) => {
+                result += (i === 0 ? "" : ", \n") + polyStr(poly);
+            });
+            result += "\n], [\n";
+            shape.shapes.forEach((shape, i) => {
+                result += (i === 0 ? "" : ", \n") + shapeStr(shape);
+            });
+            result += "\n])";
+            return result;
+        };
+        return () => {
+            userInterface.textArea.value = shapeStr(Game.GAME.model);
+        };
     }
 }
 function startDraw() {
