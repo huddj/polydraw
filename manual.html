@@ -31,6 +31,9 @@ window.onload = init;
 <h4>Layers:</h4>
 <p>Higher layers are displayed above lower layers.</p>
 
+<h4>Selection:</h4>
+<p>The selection menu at the bottom of the screen shows information about the currently selected shape/polygon. It can be used to edit the selected object's properties and to navigate the object tree. Buttons in the selection menu only work if the select tool is active.</p>
+
 <h4>Colors:</h4>
 <ul>
 <li>Green: Shape selection</li>
@@ -41,6 +44,7 @@ window.onload = init;
 </ul>
 
 <h4>Keys:</h4>
+<p>For any of these key actions to have effect, the canvas must be focused. Most of the time it will be, but sometimes after editing a text value escape needs to be pressed to focus the canvas. The pointer must also be visible on the canvas.</p>
 <ul>
 <li>A: "Assign" - If a shape is selected, set it as the current active parent</li>
 <li>B: "Back" - Select parent of currently selected shape; if a point is selected, select the polygon/polyline the points belongs to</li>

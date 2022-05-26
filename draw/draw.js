@@ -309,30 +309,38 @@ class Input {
         this.keyHandlers.set("eqB", new Button(["="], (down) => { if (down) {
             Game.GAME.camera.height *= 0.8;
         } }, Game.GAME.camera.canvas));
-        this.keyHandlers.set("aB", new Button(["a"], (down) => { if (down) {
-            Game.GAME.userInterface.selectParentShape();
-        } }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("aB", new Button(["a"], (down) => {
+            if (down) {
+                if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                    Game.GAME.userInterface.selectParentShape();
+                }
+            }
+        }, Game.GAME.camera.canvas));
         this.keyHandlers.set("mouseB", new Button(["mouse"], (down) => {
             if (down) {
-                switch (Game.GAME.userInterface.selectedTool) {
-                    case Tool.select:
-                        Game.GAME.userInterface.selectObjects();
-                        break;
-                    case Tool.shape:
-                        Game.GAME.userInterface.createShape();
-                        break;
-                    case Tool.point:
-                        Game.GAME.userInterface.createPoint();
-                        break;
-                    case Tool.move:
-                        Game.GAME.userInterface.moveObject();
-                        break;
-                    case Tool.poly:
-                        Game.GAME.userInterface.polyPoint();
-                        break;
-                    case Tool.line:
-                        Game.GAME.userInterface.polyPoint();
-                        break;
+                const hor = 0 < this.canvasMouseCoords[0] && this.canvasMouseCoords[0] < 600;
+                const ver = 0 < this.canvasMouseCoords[1] && this.canvasMouseCoords[1] < 600;
+                if (hor && ver) {
+                    switch (Game.GAME.userInterface.selectedTool) {
+                        case Tool.select:
+                            Game.GAME.userInterface.selectObjects();
+                            break;
+                        case Tool.shape:
+                            Game.GAME.userInterface.createShape();
+                            break;
+                        case Tool.point:
+                            Game.GAME.userInterface.createPoint();
+                            break;
+                        case Tool.move:
+                            Game.GAME.userInterface.moveObject();
+                            break;
+                        case Tool.poly:
+                            Game.GAME.userInterface.polyPoint();
+                            break;
+                        case Tool.line:
+                            Game.GAME.userInterface.polyPoint();
+                            break;
+                    }
                 }
             }
         }, Game.GAME.camera.canvas));
@@ -341,9 +349,11 @@ class Input {
         } }, document.body));
         this.keyHandlers.set("rB", new Button(["r"], (down) => {
             if (down) {
-                Game.GAME.userInterface.selectedObjects = [Game.GAME.model.evaluate()];
-                Game.GAME.userInterface.selectObject(0);
-                Game.GAME.userInterface.selectParentShape();
+                if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                    Game.GAME.userInterface.selectedObjects = [Game.GAME.model.evaluate()];
+                    Game.GAME.userInterface.selectObject(0);
+                    Game.GAME.userInterface.selectParentShape();
+                }
             }
         }, Game.GAME.camera.canvas));
         this.keyHandlers.set("sB", new Button(["s"], (down) => {
@@ -360,22 +370,28 @@ class Input {
                 }
             }
         }, Game.GAME.camera.canvas));
-        this.keyHandlers.set("dB", new Button(["d"], (down) => { if (down) {
-            Game.GAME.userInterface.deleteObject();
-        } }, Game.GAME.camera.canvas));
+        this.keyHandlers.set("dB", new Button(["d"], (down) => {
+            if (down) {
+                if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                    Game.GAME.userInterface.deleteObject();
+                }
+            }
+        }, Game.GAME.camera.canvas));
         this.keyHandlers.set("shiftB", new Button(["shift"], (down) => { }, document.body));
         this.keyHandlers.set("bB", new Button(["b"], (down) => {
             if (down) {
-                const selected = Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject];
-                if (selected.identify() === "Polygon" && Game.GAME.userInterface.selectedPoint !== 0) {
-                    Game.GAME.userInterface.selectedPoint = 0;
-                    Game.GAME.userInterface.refreshModel();
-                }
-                else {
-                    const parent = Game.GAME.userInterface.getEvaluatedParent(selected.original, Game.GAME.model.evaluate());
-                    if (parent !== null) {
-                        Game.GAME.userInterface.selectedObjects = [parent];
-                        Game.GAME.userInterface.selectObject(0);
+                if (Game.GAME.userInterface.selectedTool === Tool.select) {
+                    const selected = Game.GAME.userInterface.selectedObjects[Game.GAME.userInterface.selectedObject];
+                    if (selected.identify() === "Polygon" && Game.GAME.userInterface.selectedPoint !== 0) {
+                        Game.GAME.userInterface.selectedPoint = 0;
+                        Game.GAME.userInterface.refreshModel();
+                    }
+                    else {
+                        const parent = Game.GAME.userInterface.getEvaluatedParent(selected.original, Game.GAME.model.evaluate());
+                        if (parent !== null) {
+                            Game.GAME.userInterface.selectedObjects = [parent];
+                            Game.GAME.userInterface.selectObject(0);
+                        }
                     }
                 }
             }
@@ -690,6 +706,7 @@ class UserInterface {
         importButton.onclick = this.fromJSON(this);
         exportButton.onclick = this.toJSON(this);
         exportPolycodeButton.onclick = this.toPolyCode(this);
+        Game.GAME.camera.canvas.onmouseenter = () => { Game.GAME.camera.canvas.focus(); };
     }
     toJSON(userInterface) {
         return () => { userInterface.textArea.value = JSON.stringify(Game.GAME.model); };
@@ -790,8 +807,10 @@ class UserInterface {
             switchSelectedInput.style.width = "4ch";
             switchSelectedInput.value = (idx + 1) + "";
             switchSelectedInput.onchange = () => {
-                me.selectObject(parseInt(switchSelectedInput.value) - 1);
-                Game.GAME.camera.canvas.focus();
+                if (me.selectedTool === Tool.select) {
+                    me.selectObject(parseInt(switchSelectedInput.value) - 1);
+                    Game.GAME.camera.canvas.focus();
+                }
             };
             this.selectionDiv.appendChild(switchSelectedInput);
         }
@@ -833,10 +852,12 @@ class UserInterface {
                         me.drawCommands.delete(drawCommandName);
                     };
                     shapeChildButton.onclick = () => {
-                        shapeChildButton.onmouseleave(null);
-                        me.selectedObjects = [s];
-                        me.selectObject(0);
-                        Game.GAME.camera.canvas.focus();
+                        if (me.selectedTool === Tool.select) {
+                            shapeChildButton.onmouseleave(null);
+                            me.selectedObjects = [s];
+                            me.selectObject(0);
+                            Game.GAME.camera.canvas.focus();
+                        }
                     };
                     this.selectionDiv.appendChild(shapeChildButton);
                 });
@@ -856,10 +877,12 @@ class UserInterface {
                         me.drawCommands.delete(drawCommandName);
                     };
                     polygonChildButton.onclick = () => {
-                        polygonChildButton.onmouseleave(null);
-                        me.selectedObjects = [poly];
-                        me.selectObject(0);
-                        Game.GAME.camera.canvas.focus();
+                        if (me.selectedTool === Tool.select) {
+                            polygonChildButton.onmouseleave(null);
+                            me.selectedObjects = [poly];
+                            me.selectObject(0);
+                            Game.GAME.camera.canvas.focus();
+                        }
                     };
                     this.selectionDiv.appendChild(polygonChildButton);
                 });
@@ -899,14 +922,16 @@ class UserInterface {
                         me.drawCommands.delete(drawCommandName);
                     };
                     pointChildButton.onclick = () => {
-                        Array.from(me.selectionDiv.children).forEach(c => {
-                            if (c.style.backgroundColor === (polygon.lineOnly ? "purple" : "red")) {
-                                c.style.backgroundColor = "";
-                            }
-                        });
-                        pointChildButton.style.backgroundColor = polygon.lineOnly ? "purple" : "red";
-                        me.selectedPoint = i + 1;
-                        Game.GAME.camera.canvas.focus();
+                        if (me.selectedTool === Tool.select) {
+                            Array.from(me.selectionDiv.children).forEach(c => {
+                                if (c.style.backgroundColor === (polygon.lineOnly ? "purple" : "red")) {
+                                    c.style.backgroundColor = "";
+                                }
+                            });
+                            pointChildButton.style.backgroundColor = polygon.lineOnly ? "purple" : "red";
+                            me.selectedPoint = i + 1;
+                            Game.GAME.camera.canvas.focus();
+                        }
                     };
                     if (i === this.selectedPoint - 1) {
                         pointChildButton.style.backgroundColor = polygon.lineOnly ? "purple" : "red";
